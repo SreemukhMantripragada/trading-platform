@@ -1,51 +1,68 @@
 ```mermaid
 flowchart TD
+
+  %% Main wrapper (vertical)
   subgraph "Algo Trading System"
-    subgraph LIVE["Live Session <br>(09:15–15:15 IST)"]
-      ZW["Zerodha WebSocket<br>(ticks)"]:::source -->|"validate (JSON Schema)"| T[(Kafka: ticks)]:::kafka
-      T --> B1S["Bar Builder 1s<br>(ticks→1s bars)"]:::process
+    direction TB
+
+    %% --- LIVE SESSION ---
+    subgraph LIVE["Live Session <br/>(09:15–15:15 IST)"]
+      direction 
+      ZW["Zerodha WebSocket<br/>(ticks)"]:::source -->|"validate (JSON Schema)"| T[(Kafka: ticks)]:::kafka
+      T --> B1S["Bar Builder 1s<br/>(ticks→1s bars)"]:::process
       B1S --> K1S[(Kafka: bars.1s)]:::kafka
-      K1S --> AGG["Generic Aggregator<br>(1s→1m/3m/5m/15m…)"]:::process
+      K1S --> AGG["Generic Aggregator<br/>(1s→1m/3m/5m/15m…)"]:::process
       AGG -->|1m persisted| DB1[(Postgres: bars_1m)]:::db
       AGG -->|3m/5m/15m…| KTF[(Kafka: bars.tf.*)]:::kafka
-      style LIVE fill:#E0EAF4,stroke:#A3B7C9,stroke-width:3px,color:#000000;
 
-      DB1 --> STR["Strategy Runner<br>(BaseStrategy children)"]:::strategy
+      DB1 --> STR["Strategy Runner<br/>(BaseStrategy children)"]:::strategy
       KTF --> STR
-      STR --> RISK["Risk & Compliance<br>(broker budget, caps, DD,<br>lot/tick/price-band checks,<br>throttles)"]:::risk
-      RISK --> OMS["OMS/EMS<br>(idempotency, retries/backoff, routing)"]:::oms
-      style LIVE fill:#E0EAF4,stroke:#A3B7C9,stroke-width:3px,color:#000000;
+      STR --> RISK["Risk & Compliance<br/>(broker budget, caps, DD,<br/>lot/tick/price-band checks,<br/>throttles)"]:::risk
+      RISK --> OMS["OMS/EMS<br/>(idempotency, retries/backoff, routing)"]:::oms
 
       OMS -->|paper| PG["Paper Gateway"]:::gateway
-      OMS -->|matcher| PM["Paper Gateway +<br>C++ Matcher"]:::gateway
+      OMS -->|matcher| PM["Paper Gateway +<br/>C++ Matcher"]:::gateway
       PM --> CXX[["C++ Price-Time Matcher"]]:::engine
-      OMS -->|live/shadow| LZ["Live Zerodha Gateway<br>(place/modify/cancel/poll)"]:::gateway
+      OMS -->|live/shadow| LZ["Live Zerodha Gateway<br/>(place/modify/cancel/poll)"]:::gateway
 
       CXX --> FILLS[(Kafka: fills)]:::kafka
       PG  --> FILLS
       LZ  --> FILLS
+
+      style LIVE fill:#E0EAF4,stroke:#A3B7C9,stroke-width:3px,color:#000000;
     end
 
+    %% --- AFTER CLOSE ---
     subgraph EOD["After Close"]
-      DB1 -->|compare| VND["Zerodha 1m<br>historical)"]:::source
+      direction TB
+      DB1 -->|compare| VND["Zerodha 1m<br/>(historical)"]:::source
       VND --> RECON["(bars_1m_recon)"]:::process
-      RECON --> GVIEW["VIEW bars_1m_golden<br>(recon ∪ raw)"]:::db
-      GVIEW --> S3["(S3 Parquet Archive<br>>100 days)"]:::storage
+      RECON --> GVIEW["VIEW bars_1m_golden<br/>(recon ∪ raw)"]:::db
+      GVIEW --> S3["(S3 Parquet Archive<br/>>100 days)"]:::storage
       GVIEW --> IND["Indicators (15–20)"]:::process
       IND --> ENS["Ensemble Signals"]:::output
       GVIEW --> BT["Backtests & Param Sweeps"]:::process
-      BT --> TOP5["Top-5 Configs<br>(next day candidates)"]:::output
-      GVIEW --> PAIR["Pairs Scan<br>(corr/cointegration)"]:::process
+      BT --> TOP5["Top-5 Configs<br/>(next day candidates)"]:::output
+      GVIEW --> PAIR["Pairs Scan<br/>(corr/cointegration)"]:::process
       PAIR --> WATCH["Next-Day Watchlist"]:::output
-    end
-    style EOD fill:#EAF4EA,stroke:#A3C9A3,stroke-width:3px,color:#000000;
 
+      style EOD fill:#EAF4EA,stroke:#A3C9A3,stroke-width:3px,color:#000000;
+    end
+
+    %% --- OBSERVABILITY ---
     subgraph OBS["Observability & Ops"]
+      direction TB
       PRM["Prometheus"]:::monitoring --> GRA["Grafana Dashboards & Alerts"]:::monitoring
-      DOC["Doctor/One-click<br>(start/stop/health)"]:::controls
-    end
-    style OBS fill:#F4ECE0,stroke:#C9B7A3,stroke-width:3px,color:#000000;
+      DOC["Doctor/One-click<br/>(start/stop/health)"]:::controls
 
+      style OBS fill:#F4ECE0,stroke:#C9B7A3,stroke-width:3px,color:#000000;
+    end
+
+    %% --- Vertical stacking helpers (layout-only, dashed) ---
+    LIVE -.-> EOD
+    %% OBS  -.-> EOD
+
+    %% --- Metrics & controls ---
     B1S --metrics--> PRM
     STR --metrics--> PRM
     RISK --metrics--> PRM
@@ -56,6 +73,7 @@ flowchart TD
     DOC --controls--> EOD
   end
 
+  %% --- Styles (kept simple for GitHub)
   classDef source fill:#B3D9FF,stroke:#265A8F,stroke-width:3px,color:#000000;
   classDef kafka fill:#FFC48C,stroke:#B26200,stroke-width:3px,color:#000000;
   classDef process fill:#A3D7AE,stroke:#1A692D,stroke-width:3px,color:#000000;
@@ -70,4 +88,4 @@ flowchart TD
   classDef monitoring fill:#FFCC80,stroke:#A36600,stroke-width:3px,color:#000000;
   classDef controls fill:#D9D9D9,stroke:#595959,stroke-width:3px,color:#000000;
 
-  linkStyle default stroke-width:3px, fill:none, stroke:#555
+  linkStyle default stroke-width:3px,fill:none,stroke:#555
