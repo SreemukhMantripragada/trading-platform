@@ -7,7 +7,7 @@ flowchart TD
 
     %% --- LIVE SESSION ---
     subgraph LIVE["Live Session <br/>(09:15–15:15 IST)"]
-      direction 
+      TRADING_PLATFORM
       ZW["Zerodha WebSocket<br/>(ticks)"]:::source -->|"validate (JSON Schema)"| T[(Kafka: ticks)]:::kafka
       T --> B1S["Bar Builder 1s<br/>(ticks→1s bars)"]:::process
       B1S --> K1S[(Kafka: bars.1s)]:::kafka
