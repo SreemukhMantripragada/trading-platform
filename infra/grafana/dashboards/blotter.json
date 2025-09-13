@@ -1,0 +1,51 @@
+{
+  "title": "Trading Blotter",
+  "uid": "blotter-001",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Orders (24h)",
+      "gridPos": {"x":0,"y":0,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"Trading Postgres"},
+      "targets": [
+        {"format":"table","rawSql":"SELECT count(*) AS v FROM orders WHERE ts >= now() - interval '24 hours';","refId":"A"}
+      ],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"]},"orientation":"horizontal"}
+    },
+    {
+      "type": "stat",
+      "title": "Fills (24h)",
+      "gridPos": {"x":6,"y":0,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"Trading Postgres"},
+      "targets": [
+        {"format":"table","rawSql":"SELECT count(*) AS v FROM fills WHERE ts >= now() - interval '24 hours';","refId":"A"}
+      ],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"]},"orientation":"horizontal"}
+    },
+    {
+      "type": "table",
+      "title": "Blotter (Last 100)",
+      "gridPos": {"x":0,"y":4,"w":24,"h":16},
+      "datasource": {"type":"postgres","uid":"Trading Postgres"},
+      "targets": [
+        {
+          "format":"table",
+          "rawSql":"SELECT order_ts AS time, order_id, client_order_id, symbol, side, ord_qty, fill_qty, avg_fill_price, status FROM blotter WHERE order_ts >= now() - interval '7 days' ORDER BY order_ts DESC LIMIT 100;",
+          "refId":"A"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Applied per TF; framework keeps the rolling buffers
+timeframes:
+  1m:
+    - { kind: SMA, params: { period: 5 } }
+    - { kind: SMA, params: { period: 20 } }
+    - { kind: RSI, params: { period: 14 } }
+    - { kind: ATR, params: { period: 14 } }
+  5m:
+    - { kind: SMA, params: { period: 10 } }
+    - { kind: RSI, params: { period: 14 } }

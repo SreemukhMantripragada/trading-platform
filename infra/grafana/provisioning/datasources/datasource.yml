@@ -1,0 +1,11 @@
+# Define and configure Grafana data sources
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Proxy for server-side access, Use direct for client-side
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    # Can be edited from Grafana UI
+    editable: true

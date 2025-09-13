@@ -1,0 +1,7 @@
+equity_start: 1000000    # INR starting equity used for DD checks (paper)
+daily_notional_cap: 300000
+per_order_notional_cap: 100000
+# per_symbol_max_qty: 50
+max_open_positions: 20
+max_daily_drawdown_pct: 5.0
+min_qty: 1

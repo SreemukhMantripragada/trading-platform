@@ -1,0 +1,7 @@
+strategies:
+  - name: SMA_Cross
+    params: { fast: 5, slow: 20 }
+    timeframes: ["1m","5m"]
+  - name: RSI_Reversion
+    params: { period: 14, buy_th: 30, sell_th: 70, stop_k_atr: 1.5 }
+    timeframes: ["1m","5m"]

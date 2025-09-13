@@ -1,0 +1,21 @@
+# Controls global settings, Can be overridden in individual scrape configs
+global:
+  scrape_interval: 15s
+  # How often to evaluate rules
+  evaluation_interval: 30s
+
+#  Controls how often Prometheus will scrape targets
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+    # A list of targets to scrape (HTTP endpoints exposing Prometheus metrics)
+      - targets: ['prometheus:9090']
+
+  - job_name: kafka
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+      
+  - job_name: apps
+    static_configs:
+      - targets: ['host.docker.internal:8003','host.docker.internal:8004','host.docker.internal:8006','host.docker.internal:8007','host.docker.internal:8008','host.docker.internal:8009']
+

@@ -1,0 +1,8 @@
+{"title":"Trading Overview","uid":"tr-over","timezone":"browser","schemaVersion":38,"version":1,"time":{"from":"now-6h","to":"now"},"panels":[
+{"type":"stat","title":"Orders/min","gridPos":{"x":0,"y":0,"w":8,"h":4},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"rate(ensemble_orders_total[5m]) + rate(orders_emitted_total[5m])","refId":"A"}]},
+{"type":"stat","title":"Approved/min","gridPos":{"x":8,"y":0,"w":8,"h":4},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"rate(risk_orders_approved_total[5m])","refId":"A"}]},
+{"type":"stat","title":"Fills/min","gridPos":{"x":16,"y":0,"w":8,"h":4},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"rate(exec_orders_filled_total[5m])","refId":"A"}]},
+{"type":"graph","title":"Consumer Lag (orders)","gridPos":{"x":0,"y":4,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"kafka_consumergroup_lag_sum{consumergroup=~\"strategy_runner_sma|ensemble_runner|risk_manager|paper_exec\",topic=\"orders\"}","refId":"A"}]},
+{"type":"graph","title":"Consumer Lag (orders.sized)","gridPos":{"x":12,"y":4,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"kafka_consumergroup_lag_sum{topic=\"orders.sized\"}","refId":"A"}]},
+{"type":"graph","title":"Bar Flush p95 (1s/1m)","gridPos":{"x":0,"y":12,"w":24,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum(rate(bars_1s_flush_seconds_bucket[5m])) by (le))","refId":"A"},{"expr":"histogram_quantile(0.95, sum(rate(bars_1m_flush_seconds_bucket[5m])) by (le))","refId":"B"}]}
+]}

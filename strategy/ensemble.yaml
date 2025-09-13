@@ -1,0 +1,6 @@
+mode: "k_of_n"
+k: 2
+min_score: 0.5
+weights:
+  SMA_Cross: 1.0
+  RSI_Reversion: 1.0

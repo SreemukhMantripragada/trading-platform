@@ -1,0 +1,15 @@
+reserve_pct: 20
+leverage: 5
+buckets:
+  LOW: 0.50
+  MED: 0.30
+  HIGH: 0.20
+risk_per_trade_pct:
+  LOW: 0.25
+  MED: 0.50
+  HIGH: 1.00
+monetary_caps:
+  RSI_Reversion: 3000   # INR per trade cap if no stop
+max_open_positions: 25
+per_symbol_max_qty: 5000
+tick_size: 0.05

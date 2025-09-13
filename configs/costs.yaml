@@ -1,0 +1,7 @@
+slippage_bps: 5
+brokerage_fixed: 20           # per order leg
+stt_pct: 0.001
+exchange_txn_pct: 0.0000325
+sebi_fee_pct: 0.000001
+gst_pct: 0.18
+stamp_duty_pct: 0.00015

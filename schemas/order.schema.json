@@ -1,0 +1,3 @@
+{ "$schema":"http://json-schema.org/draft-07/schema#", "type":"object",
+  "required":["client_order_id","symbol","side","qty","order_type","strategy","status","ts"],
+  "properties":{"client_order_id":{"type":"string"},"symbol":{"type":"string"},"side":{"enum":["BUY","SELL"]},"qty":{"type":"integer","minimum":1},"order_type":{"enum":["MKT","LMT"]},"strategy":{"type":"string"},"status":{"type":"string"},"ts":{"type":"integer"}}}

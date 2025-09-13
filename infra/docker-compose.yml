@@ -1,0 +1,125 @@
+name: trading-stack
+
+services:
+  # Zookeeper service for Kafka coordination
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: zookeeper
+    restart: unless-stopped
+    environment: [ "ALLOW_ANONYMOUS_LOGIN=yes" ]
+    ports: [ "${ZOOKEEPER_CLIENT_PORT}:2181" ] # Expose Zookeeper client port
+    networks: [ core ]
+    volumes: [ "zookeeper_data:/bitnami" ] # Persist Zookeeper data
+
+  # Kafka broker service
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: kafka
+    restart: unless-stopped
+    depends_on: [ zookeeper ] # Wait for Zookeeper to be ready
+    environment:
+      - KAFKA_BROKER_ID=${KAFKA_BROKER_ID}
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:${ZOOKEEPER_CLIENT_PORT}
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_INTERNAL://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:${KAFKA_OUTSIDE_PORT},PLAINTEXT_INTERNAL://kafka:${KAFKA_INSIDE_PORT}
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT_INTERNAL
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=false
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports: [ "${KAFKA_OUTSIDE_PORT}:9092" ] # Expose Kafka broker port
+    healthcheck:
+      test: ["CMD","bash","-lc","kafka-topics.sh --bootstrap-server kafka:${KAFKA_INSIDE_PORT} --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [ core ]
+    volumes: [ "kafka_data:/bitnami" ] # Persist Kafka data
+
+  # Kafka UI for managing and monitoring Kafka
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on: [ kafka ] # Wait for Kafka to be ready
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:${KAFKA_INSIDE_PORT}
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:${ZOOKEEPER_CLIENT_PORT}
+    ports: [ "8080:8080" ] # Expose Kafka UI on port 8080
+    networks: [ core ]
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: kafka-exporter
+    restart: unless-stopped
+    command:
+      - --kafka.server=kafka:${KAFKA_INSIDE_PORT:-29092}
+    ports: [ "9308:9308" ]
+    networks: [ core ]
+    depends_on: [ kafka ]
+  # PostgreSQL database service
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports: [ "${POSTGRES_PORT}:5432" ] # Expose PostgreSQL port
+    networks: [ core ]
+    volumes: [ "pg_data:/var/lib/postgresql/data" ] # Persist database data
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro # Mount Prometheus config
+    ports: [ "${PROMETHEUS_PORT}:9090" ] # Expose Prometheus UI
+    networks: [ core ]
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment: [ "GF_SECURITY_ADMIN_PASSWORD=admin" ]
+    ports: [ "${GRAFANA_PORT}:3000" ] # Expose Grafana UI
+    networks: [ core ]
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources # Mount Grafana datasource config
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+
+  app-bars1s:
+    build:
+      context: ..
+      dockerfile: Dockerfile.app
+    image: trading-app:latest
+    command: bash -lc "python compute/bar_builder_1s.py"
+    environment:
+      - KAFKA_BROKER=kafka:${KAFKA_INSIDE_PORT}
+      - IN_TOPIC=ticks
+      - OUT_TOPIC=bars.1s
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - METRICS_PORT=8003
+    ports: [ "8003:8003" ]
+    networks: [ core ]
+    profiles: [ app ]
+    depends_on: [ kafka, postgres ]
+
+# Define the shared Docker network for all services
+networks: { core: {} }
+
+# Define persistent named volumes for data storage
+volumes:
+  zookeeper_data: {}
+  kafka_data: {}
+  pg_data: {}
+
