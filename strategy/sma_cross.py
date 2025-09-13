@@ -1,29 +1,28 @@
-# strategy/sma_cross.py
+from __future__ import annotations
+from collections import deque
 from typing import Dict, Any
-from libs.signal import Signal, NONE
-from .base import Strategy
+from .base import BaseStrategy, Signal, HOLD
+from .indicators import sma
 
-class SMA_Cross(Strategy):
+class SMA_Cross(BaseStrategy):
     name = "SMA_Cross"
-    warmup_bars = 20
-    provides_stop = False
-    default_bucket = "LOW"
+    def __init__(self, **params: Any) -> None:
+        super().__init__(**params)
+        self.fast = int(self.params.get("fast", 20))
+        self.slow = int(self.params.get("slow", 50))
+        self.warmup_bars = max(self.fast, self.slow) + 5
+        self.buffers["closes"] = deque(maxlen=max(500, self.warmup_bars+5))
+        self._last_pos = 0  # +1 long, -1 short, 0 flat
 
-    def __init__(self, fast: int = 5, slow: int = 20):
-        assert fast < slow
-        self.fast = fast; self.slow = slow
-        self._state = {}  # per-symbol state: last relation
-
-    def on_bar(self, symbol, tf, ts, o,h,l,c,vol, feats: Dict[str, Any]):
-        f = feats.get(f"sma{self.fast}")
-        s = feats.get(f"sma{self.slow}")
-        ready = feats.get("ready", False) and (f is not None and s is not None)
-        if not ready: return NONE
-        st = 1 if f > s else (-1 if f < s else 0)
-        prev = self._state.get(symbol, 0)
-        self._state[symbol] = st
-        if prev <= 0 and st > 0:
-            return Signal(side="BUY", score=0.7, tags={"why":"sma_up"})
-        if prev >= 0 and st < 0:
-            return Signal(side="SELL", score=0.7, tags={"why":"sma_dn"})
-        return NONE
+    def on_bar(self, symbol, timeframe, ts, o,h,l,c,vol, features: Dict[str,Any]):
+        closes = self.buffers["closes"]; closes.append(float(c))
+        if len(closes) < self.warmup_bars: return self._set_last(HOLD)
+        f = sma(closes, self.fast); s = sma(closes, self.slow)
+        if f is None or s is None: return self._set_last(HOLD)
+        if f > s and self._last_pos <= 0:
+            self._last_pos = +1
+            return self._set_last(Signal("BUY", reason=f"SMA {self.fast}>{self.slow}"))
+        if f < s and self._last_pos >= 0:
+            self._last_pos = -1
+            return self._set_last(Signal("SELL", reason=f"SMA {self.fast}<{self.slow}"))
+        return self._set_last(HOLD)

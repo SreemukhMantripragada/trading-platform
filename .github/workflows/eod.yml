@@ -1,0 +1,33 @@
+name: EOD Pipeline
+on:
+  schedule:
+    - cron: "10 10 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  eod:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Deps
+        run: pip install -r requirements.txt
+      - name: Env
+        run: |
+          echo "POSTGRES_HOST=${{ secrets.PG_HOST }}" >> $GITHUB_ENV
+          echo "POSTGRES_PORT=${{ secrets.PG_PORT }}" >> $GITHUB_ENV
+          echo "POSTGRES_DB=${{ secrets.PG_DB }}" >> $GITHUB_ENV
+          echo "POSTGRES_USER=${{ secrets.PG_USER }}" >> $GITHUB_ENV
+          echo "POSTGRES_PASSWORD=${{ secrets.PG_PASS }}" >> $GITHUB_ENV
+          echo "KITE_API_KEY=${{ secrets.KITE_API_KEY }}" >> $GITHUB_ENV
+          echo "ZERODHA_TOKEN_FILE=ingestion/auth/token.json" >> $GITHUB_ENV
+      - name: Token (install from secret)
+        run: |
+          mkdir -p ingestion/auth
+          printf '%s\n' "${{ secrets.ZERODHA_TOKEN_JSON }}" > ingestion/auth/token.json
+      - name: EOD
+        env:
+          DATE: ${{ inputs.date || '' }}
+        run: python orchestrator/eod_pipeline.py

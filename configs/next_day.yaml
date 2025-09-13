@@ -1,0 +1,10 @@
+# Produced by backtest/top5_export.py; edit by hand if needed.
+use:
+  - symbol: RELIANCE
+    strategy: SMA_CROSS
+    tf: 1
+    params: { fast: 10, slow: 50 }
+  - symbol: TCS
+    strategy: RSI_REV
+    tf: 5
+    params: { period: 14, overbought: 70, oversold: 30 }

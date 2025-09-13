@@ -1,0 +1,26 @@
+{
+  "title": "Gateway & OMS",
+  "refresh": "5s",
+  "panels": [
+    { "type": "stat", "title": "Pending Now", "id": 1,
+      "targets": [{ "expr": "gateway_orders_pending_now" }] },
+    { "type": "stat", "title": "Rejected 24h", "id": 2,
+      "targets": [{ "expr": "gateway_orders_rejected_24h" }] },
+    { "type": "graph", "title": "Order Latency p50/p95 (s) last 15m", "id": 3,
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(gateway_order_latency_seconds_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(gateway_order_latency_seconds_bucket[5m])) by (le))" }
+      ],
+      "linewidth": 2, "fill": 1
+    },
+    { "type": "bargauge", "title": "Broker Status Now", "id": 4,
+      "targets": [{ "expr": "gateway_broker_status_now" }] },
+    { "type": "bargauge", "title": "Orders 24h by Status", "id": 5,
+      "targets": [{ "expr": "gateway_orders_24h_total" }] },
+    { "type": "graph", "title": "Fills 24h (level)", "id": 6,
+      "targets": [{ "expr": "gateway_fills_24h_total" }],
+      "linewidth": 2, "fill": 1
+    }
+  ],
+  "schemaVersion": 36, "version": 1
+}

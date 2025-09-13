@@ -1,0 +1,20 @@
+universe_file: "configs/universe_largecap.csv"   # CSV with header symbol
+limit_symbols: 60
+lookback_days: 60
+
+# filter to keep "cointegrated-like" pairs cheaply (no heavy stats needed for now)
+min_corr: 0.75
+top_k: 30
+
+# live watch (producer) parameters
+watch:
+  tf_topic: "bars.1m"      # incoming bars (A + B)
+  window_min: 120          # rolling spread window (bars) for z-score
+  z_enter: 2.0             # enter when |z| >= z_enter
+  z_exit: 0.5              # exit when |z| <= z_exit (flat)
+  out_topic: "pairs.signals"
+
+# execution sizing for pairs strategy (fallback if live cash not available)
+exec:
+  per_trade_inr: 10000     # total budget per pair trade (split across legs)
+  risk_bucket: "MED"       # which bucket to tag orders with

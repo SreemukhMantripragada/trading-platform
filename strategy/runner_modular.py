@@ -12,6 +12,9 @@ from indicators.rsi import RSI
 from indicators.atr import ATR
 from libs.killswitch import KillSwitch
 
+from prometheus_client import start_http_server, Counter
+ORDERS_EMITTED = Counter("orders_emitted_total","orders emitted")
+
 BROKER=os.getenv("KAFKA_BROKER","localhost:9092")
 IN_TOPIC=os.getenv("IN_TOPIC","bars.1m")      # run per TF instance
 OUT_TOPIC=os.getenv("OUT_TOPIC","orders")
@@ -83,6 +86,7 @@ async def main():
                           key_deserializer=lambda b: b.decode() if b else None)
     prod=AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
     await cons.start(); await prod.start()
+    start_http_server(int(os.getenv("METRICS_PORT","8007")))
     try:
         while True:
             if KS.is_tripped()[0]:
@@ -135,6 +139,7 @@ async def main():
                     }
                     await persist_order(pool, order)
                     await prod.send_and_wait("orders", json.dumps(order).encode(), key=sym.encode())
+                    ORDERS_EMITTED.inc()
             await cons.commit()
     finally:
         await cons.stop(); await prod.stop(); await pool.close()

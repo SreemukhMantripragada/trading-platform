@@ -1,0 +1,44 @@
+groups:
+- name: trading-alerts
+  rules:
+  - alert: RiskRejectedSpike
+    expr: rate(risk_orders_rejected_total[5m]) > 5
+    for: 2m
+    labels: {severity: warning}
+    annotations: {summary: "Risk rejections high", description: "Investigate bucket caps or cash."}
+
+  - alert: ExecNoFills
+    expr: increase(exec_orders_filled_total[15m]) == 0
+    for: 15m
+    labels: {severity: critical}
+    annotations: {summary: "No fills in 15m", description: "Matcher/broker path might be down."}
+
+  - alert: OrdersZero
+    expr: increase(orders_emitted_total[10m]) == 0
+    for: 10m
+    labels: {severity: warning}
+    annotations: {summary: "No orders emitted", description: "Strategy runner idle or data feed stalled."}
+
+  - alert: HighRejectRate
+    expr: oms_reject_rate_24h > 0.05   # >5% in last 24h
+    for: 3m
+    labels: { severity: page }
+    annotations:
+      summary: "High reject rate"
+      description: "Reject rate is {{ $value | printf \"%.2f\" }} in the last 24h."
+
+  - alert: OrderLatencyP95High
+    expr: histogram_quantile(0.95, sum(rate(oms_time_to_complete_seconds_bucket[5m])) by (le)) > 5
+    for: 2m
+    labels: { severity: page }
+    annotations:
+      summary: "OMS p95 time-to-complete > 5s"
+      description: "Orders are slow to complete (p95 > 5s)."
+
+  - alert: DrawdownVelocitySpike
+    expr: risk_dd_velocity_pct_per_min{bucket="MED"} < -0.5
+    for: 2m
+    labels: { severity: page }
+    annotations:
+      summary: "Drawdown velocity spike (MED)"
+      description: "Equity falling faster than -0.5%/min in MED bucket."

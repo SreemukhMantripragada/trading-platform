@@ -1,15 +1,25 @@
-reserve_pct: 20
-leverage: 5
+capital:
+  starting_cash_inr: 100000.0     # used only as fallback if live is stale/missing
+  broker_leverage_x: 5.0          # Zerodha MIS (example)
+  reserve_ratio: 0.20             # keep 20% reserve (fallback path)
+
 buckets:
-  LOW: 0.50
-  MED: 0.30
-  HIGH: 0.20
-risk_per_trade_pct:
-  LOW: 0.25
-  MED: 0.50
-  HIGH: 1.00
-monetary_caps:
-  RSI_Reversion: 3000   # INR per trade cap if no stop
-max_open_positions: 25
-per_symbol_max_qty: 5000
-tick_size: 0.05
+  LOW:
+    split: 0.50                   # 50% of deployable cash
+    max_per_symbol: 0.10          # at most 10% of bucket on one symbol
+  MED:
+    split: 0.30
+    max_per_symbol: 0.15
+  HIGH:
+    split: 0.20
+    max_per_symbol: 0.20
+
+risk_per_trade:
+  LOW:  500.0                     # rupees-at-risk per trade when SL is present
+  MED:  1000.0
+  HIGH: 2000.0
+
+no_fixed_sl_cap:
+  LOW:  5000.0                    # if no SL, cap order notional by this amount (rupees)
+  MED:  10000.0
+  HIGH: 20000.0

@@ -1,0 +1,38 @@
+{
+  "title": "OMS Lifecycle",
+  "refresh": "5s",
+  "panels": [
+    { "type": "stat", "title": "Open Orders Now", "id": 1,
+      "targets": [{ "expr": "oms_open_orders_now" }] },
+
+    { "type": "bargauge", "title": "Orders by Status (snapshot)", "id": 2,
+      "targets": [{ "expr": "oms_orders_by_status" }] },
+
+    { "type": "graph", "title": "Open Order Age p50/p95 (s)", "id": 3,
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(oms_open_age_seconds_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(oms_open_age_seconds_bucket[5m])) by (le))" }
+      ],
+      "linewidth": 2, "fill": 1
+    },
+
+    { "type": "graph", "title": "Time to Complete p50/p95 (s)", "id": 4,
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(oms_time_to_complete_seconds_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(oms_time_to_complete_seconds_bucket[5m])) by (le))" }
+      ],
+      "linewidth": 2, "fill": 1
+    },
+
+    { "type": "stat", "title": "Orders 24h", "id": 5,
+      "targets": [{ "expr": "oms_orders_24h_total" }] },
+    { "type": "stat", "title": "Fills 24h", "id": 6,
+      "targets": [{ "expr": "oms_fills_24h_total" }] },
+
+    { "type": "gauge", "title": "Cancel Rate 24h", "id": 7,
+      "targets": [{ "expr": "oms_cancel_rate_24h" }], "max": 1 },
+    { "type": "gauge", "title": "Reject Rate 24h", "id": 8,
+      "targets": [{ "expr": "oms_reject_rate_24h" }], "max": 1 }
+  ],
+  "schemaVersion": 36, "version": 1
+}

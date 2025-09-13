@@ -1,0 +1,32 @@
+label: "daily-grid"
+universe:
+  symbols_file: "configs/universe_largecap.csv"   # CSV with header 'symbol'
+  limit: 50                                       # take first N
+date:
+  start: "2025-08-01"
+  end:   "2025-09-09"
+timeframes: [1, 3, 5, 15]
+
+strategies:
+  - name: "SMA_CROSS"
+    module: "backtest.strategies.sma"
+    class: "SMACross"
+    params:
+      fast: [5, 10, 20]
+      slow: [20, 50, 100]
+  - name: "RSI_REV"
+    module: "backtest.strategies.rsi"
+    class: "RSIStrategy"
+    params:
+      period: [14]
+      overbought: [70]
+      oversold: [30]
+
+costs:
+  slippage_bps: 2                 # per side
+  brokerage_per_order_inr: 20
+  taxes_pct: 0.001                # 0.1% total
+
+budget:
+  per_symbol_inr: 10000           # for backtests only
+  squareoff_ist: "15:15"          # daily square-off time
