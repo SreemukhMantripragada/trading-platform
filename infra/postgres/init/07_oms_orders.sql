@@ -1,11 +1,12 @@
--- Orders & OMS state
-CREATE TABLE IF NOT EXISTS orders (
-  client_order_id  text PRIMARY KEY,       -- idempotency key
-  ts               timestamptz NOT NULL,   -- order creation (from event)
+-- OMS Orders & Audit (renamed to 'oms_orders' to avoid collision)
+
+CREATE TABLE IF NOT EXISTS oms_orders (
+  client_order_id  text PRIMARY KEY,
+  ts               timestamptz NOT NULL,
   symbol           text        NOT NULL,
   side             text        NOT NULL,   -- BUY/SELL/EXIT
   qty              bigint      NOT NULL,
-  order_type       text        NOT NULL,   -- MKT/LMT/IOC etc.
+  order_type       text        NOT NULL,
   strategy         text        NOT NULL,
   risk_bucket      text        NOT NULL,
   status           text        NOT NULL,   -- NEW/ACK/PARTIAL/FILLED/CANCELED/REJECTED
@@ -14,10 +15,9 @@ CREATE TABLE IF NOT EXISTS orders (
   audit_hash       text        NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);
-CREATE INDEX IF NOT EXISTS orders_symbol_idx ON orders(symbol);
+CREATE INDEX IF NOT EXISTS oms_orders_status_idx ON oms_orders(status);
+CREATE INDEX IF NOT EXISTS oms_orders_symbol_idx ON oms_orders(symbol);
 
--- Minimal order state transitions audit trail
 CREATE TABLE IF NOT EXISTS order_audit (
   id      bigserial PRIMARY KEY,
   client_order_id text NOT NULL,

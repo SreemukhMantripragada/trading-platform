@@ -1,4 +1,5 @@
--- infra/postgres/init/10_oms.sql
+-- OMS Live: live_orders + oms_fills (client-order keyed)
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables
@@ -21,10 +22,10 @@ BEGIN
     CREATE INDEX live_orders_symbol_idx ON live_orders(symbol);
   END IF;
 
-  -- generic fills table if not present (your repo may already have one)
+  -- Renamed: fills -> oms_fills (to avoid collision with trading fills)
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables
-                 WHERE table_schema='public' AND table_name='fills') THEN
-    CREATE TABLE fills (
+                 WHERE table_schema='public' AND table_name='oms_fills') THEN
+    CREATE TABLE oms_fills (
       id              bigserial PRIMARY KEY,
       client_order_id text,
       symbol          text NOT NULL,
@@ -35,6 +36,6 @@ BEGIN
       strategy        text,
       risk_bucket     text
     );
-    CREATE INDEX fills_day_sym_idx ON fills((ts::date), symbol);
+    CREATE INDEX oms_fills_day_sym_idx ON oms_fills((ts::date), symbol);
   END IF;
 END$$;

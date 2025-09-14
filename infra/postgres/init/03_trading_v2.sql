@@ -1,8 +1,10 @@
--- Orders table: strategy emits NEW; risk sets APPROVED + qty; exec sets PARTIAL/FILLED/REJECTED.
+-- Trading Core (v2): richer constraints + detailed blotter
+
+-- Orders table
 CREATE TABLE IF NOT EXISTS orders(
   order_id         bigserial PRIMARY KEY,
-  client_order_id  text UNIQUE NOT NULL,               -- idempotency key: strat:SYM:ts
-  ts               timestamptz NOT NULL DEFAULT now(), -- event time (seconds precision ok)
+  client_order_id  text UNIQUE NOT NULL,
+  ts               timestamptz NOT NULL DEFAULT now(),
   symbol           text        NOT NULL,
   side             text        NOT NULL CHECK (side IN ('BUY','SELL','EXIT')),
   qty              integer     NOT NULL DEFAULT 0 CHECK (qty >= 0),
@@ -11,34 +13,41 @@ CREATE TABLE IF NOT EXISTS orders(
   reason           text        NULL,
   risk_bucket      text        NOT NULL DEFAULT 'LOW',
   status           text        NOT NULL DEFAULT 'NEW',
-  extra            jsonb       NULL                     -- carries signal/risk context
+  extra            jsonb       NULL
 );
-
 CREATE INDEX IF NOT EXISTS orders_sym_ts_idx ON orders(symbol, ts DESC);
 CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);
 
--- Fills: multiple rows may map to one order (partial fills).
+-- Fills table
 CREATE TABLE IF NOT EXISTS fills(
   fill_id   bigserial PRIMARY KEY,
   order_id  bigint REFERENCES orders(order_id) ON DELETE CASCADE,
   ts        timestamptz NOT NULL DEFAULT now(),
   qty       integer     NOT NULL CHECK (qty > 0),
   price     double precision NOT NULL CHECK (price > 0),
-  venue     text        NOT NULL,      -- MATCHER / BROKER
-  extra     jsonb       NULL           -- fees breakdown etc.
+  venue     text        NOT NULL,
+  extra     jsonb       NULL
 );
 CREATE INDEX IF NOT EXISTS fills_order_idx ON fills(order_id);
 
--- Positions: net position per symbol (paper), with realized PnL; simplistic FIFO avg-price model.
-CREATE TABLE IF NOT EXISTS positions(
-  symbol        text PRIMARY KEY,
-  qty           integer NOT NULL DEFAULT 0,                 -- signed, + long / - short
-  avg_price     double precision NOT NULL DEFAULT 0,
-  realized_pnl  double precision NOT NULL DEFAULT 0,
-  updated_at    timestamptz NOT NULL DEFAULT now()
-);
+-- Positions: prefer bigint and only create if absent (08_positions will own it)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema='public' AND table_name='positions'
+  ) THEN
+    CREATE TABLE positions(
+      symbol        text PRIMARY KEY,
+      qty           bigint NOT NULL DEFAULT 0,
+      avg_price     double precision NOT NULL DEFAULT 0,
+      realized_pnl  double precision NOT NULL DEFAULT 0,
+      updated_at    timestamptz NOT NULL DEFAULT now()
+    );
+  END IF;
+END$$;
 
--- Blotter view: join orders/fills with per-fill fees & per-order aggregates (read-only dashboard).
+-- Detailed blotter view (owns the 'blotter' name)
 CREATE OR REPLACE VIEW blotter AS
 SELECT
   o.order_id, o.client_order_id, o.ts AS order_ts, o.symbol, o.side, o.qty AS order_qty,
