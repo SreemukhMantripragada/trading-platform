@@ -1,0 +1,20 @@
+{
+  "title": "Pairs Watch",
+  "refresh": "5s",
+  "panels": [
+    { "type":"table", "title":"Live Positions", "id":1,
+      "targets":[{"expr":"pair_in_position"}] },
+    { "type":"graph", "title":"Z-Score p50/p95", "id":2,
+      "targets":[
+        {"expr":"avg_over_time(pair_zscore[5m])"},
+        {"expr":"quantile_over_time(0.95, pair_zscore[5m])"}
+      ], "linewidth":2, "fill":1 },
+    { "type":"graph", "title":"Spread (logA - beta*logB)", "id":3,
+      "targets":[{"expr":"pair_spread"}], "linewidth":2, "fill":1 },
+    { "type":"stat", "title":"Entries (5m)", "id":4,
+      "targets":[{"expr":"sum(increase(pair_entries_total[5m]))"}] },
+    { "type":"stat", "title":"Exits (5m)", "id":5,
+      "targets":[{"expr":"sum(increase(pair_exits_total[5m]))"}] }
+  ],
+  "schemaVersion":36, "version":1
+}

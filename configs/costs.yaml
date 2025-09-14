@@ -1,14 +1,8 @@
-# Conservative fee model; tune to your contract notes.
-equities:
-  brokerage_per_leg: 20.0          # Zerodha flat (₹)
-  stt_pct: 0.001                    # 0.1% delivery; intraday lower; adjust to your segment
-  exchange_txn_pct: 0.0000325
-  sebi_charges_pct: 0.000001
-  gst_pct: 0.18                     # on brokerage + txn
-  stamp_duty_pct: 0.00003           # buy side
-  slippage_bps: 2.0                 # 2 bps implicit slippage per leg (≈0.02%)
-
-# Optional overrides per bucket
-bucket_overrides:
-  HIGH:
-    slippage_bps: 3.5
+# configs/costs.yaml
+slippage_bps: 3                # 0.03% per fill (marketable)
+brokerage_per_order: 20.0      # flat (INR)
+sebi_turnover_bps: 0.1         # 0.001%
+stt_bps: 1.0                   # 0.01% (equity delivery higher; intraday lower—adjust per product)
+exchange_txn_bps: 0.32         # 0.0032%
+gst_bps_on_brokerage: 18*100   # 18% of brokerage (express as basis points of brokerage)
+stamp_bps_buy: 0.15            # 0.0015% on buy

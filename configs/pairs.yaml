@@ -18,3 +18,18 @@ watch:
 exec:
   per_trade_inr: 10000     # total budget per pair trade (split across legs)
   risk_bucket: "MED"       # which bucket to tag orders with
+
+scan:
+  lookback_days: 45
+  promote_top_k: 8
+
+thresholds:
+  entry_z: 2.0
+  exit_z: 0.5
+  stop_z: 4.0
+  window_m: 120
+
+live:
+  per_trade_notional: 20000
+  bucket: MED
+  refresh_sec: 30

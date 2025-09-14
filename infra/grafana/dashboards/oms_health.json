@@ -1,0 +1,27 @@
+{
+  "dashboard": {
+    "title": "OMS Health & Recon",
+    "refresh": "5s",
+    "panels": [
+      {"type":"stat","title":"Reject rate (24h)","id":1,"gridPos":{"x":0,"y":0,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"oms_reject_rate_24h"}]},
+      {"type":"graph","title":"Time to first fill (p50/p95)","id":2,"gridPos":{"x":6,"y":0,"w":18,"h":8},
+       "targets":[
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"histogram_quantile(0.5, sum(rate(oms_time_to_fill_seconds_bucket[5m])) by (le))"},
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"histogram_quantile(0.95, sum(rate(oms_time_to_fill_seconds_bucket[5m])) by (le))"}
+       ]},
+      {"type":"table","title":"Broker error taxonomy (5m)","id":3,"gridPos":{"x":0,"y":4,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(increase(oms_broker_error_total[5m])) by (code)"}]},
+      {"type":"table","title":"Recon qty deltas","id":4,"gridPos":{"x":12,"y":8,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"recon_qty_diff"}]},
+      {"type":"stat","title":"Mismatch symbols","id":5,"gridPos":{"x":0,"y":12,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"recon_abs_mismatch_symbols"}]},
+      {"type":"stat","title":"Unknown broker orders (5m)","id":6,"gridPos":{"x":6,"y":12,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(increase(recon_unknown_broker_orders_total[5m]))"}]},
+      {"type":"stat","title":"Open order delta","id":7,"gridPos":{"x":12,"y":12,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"recon_open_order_delta"}]}
+    ],
+    "schemaVersion": 38, "version": 1
+  },
+  "overwrite": true
+}

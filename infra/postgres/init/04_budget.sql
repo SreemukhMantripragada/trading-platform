@@ -1,4 +1,4 @@
--- infra/postgres/init/08_budget.sql
+-- 04_budget.sql
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -14,8 +14,24 @@ BEGIN
       created_at   timestamptz  NOT NULL DEFAULT now(),
       expires_at   timestamptz  NOT NULL
     );
-    CREATE INDEX budget_reservations_active_idx
-      ON budget_reservations(as_of, bucket)
-      WHERE expires_at > now();
+  END IF;
+
+  -- Drop the old (failing) index name if it exists from prior attempts
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND indexname='budget_reservations_active_idx'
+  ) THEN
+    DROP INDEX budget_reservations_active_idx;
+  END IF;
+
+  -- Use a composite btree index; queries like
+  --   WHERE as_of = $1 AND bucket = $2 AND expires_at > now()
+  -- can use it efficiently.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND indexname='budget_reservations_lookup_idx'
+  ) THEN
+    CREATE INDEX budget_reservations_lookup_idx
+      ON budget_reservations(as_of, bucket, expires_at);
   END IF;
 END$$;

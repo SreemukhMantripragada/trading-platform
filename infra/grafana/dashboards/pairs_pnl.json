@@ -1,0 +1,39 @@
+{
+  "dashboard": {
+    "title": "Pairs P&L",
+    "refresh": "5s",
+    "templating": { "list": [] },
+    "panels": [
+      {
+        "type": "table", "title": "Live Positions (today)",
+        "gridPos": {"x":0,"y":0,"w":24,"h":9},
+        "targets": [{
+          "datasource":{"type":"postgres","uid":"Postgres"},
+          "format":"table",
+          "rawSql":"WITH leg AS (\n  SELECT (extra->>'pair_id') AS pair_id,\n         (extra->>'leg') AS leg,\n         symbol,\n         SUM(CASE WHEN side='BUY' THEN qty ELSE -qty END)::int AS net_qty\n  FROM fills WHERE ts::date = CURRENT_DATE AND extra ? 'pair_id'\n  GROUP BY 1,2,3\n)\nSELECT pair_id,\n       MAX(CASE WHEN leg='A' THEN symbol END) AS a_symbol,\n       MAX(CASE WHEN leg='B' THEN symbol END) AS b_symbol,\n       MAX(CASE WHEN leg='A' THEN net_qty END) AS pos_A,\n       MAX(CASE WHEN leg='B' THEN net_qty END) AS pos_B\nFROM leg GROUP BY pair_id ORDER BY pair_id;"
+        }]
+      },
+      {
+        "type": "table", "title": "Cashflow P&L (closed+open, naive)",
+        "gridPos": {"x":0,"y":9,"w":24,"h":9},
+        "targets": [{
+          "datasource":{"type":"postgres","uid":"Postgres"},
+          "format":"table",
+          "rawSql":"SELECT (extra->>'pair_id') AS pair_id,\n       SUM(CASE WHEN side='SELL' THEN qty*price ELSE -qty*price END)::double precision AS cash_pnl\nFROM fills WHERE extra ? 'pair_id' GROUP BY 1 ORDER BY cash_pnl DESC;"
+        }]
+      },
+      {
+        "type": "stat", "title": "Entries (5m)",
+        "gridPos": {"x":0,"y":18,"w":6,"h":5},
+        "targets": [{ "datasource":{"type":"prometheus","uid":"Prometheus"}, "expr":"sum(increase(pairs_orders_emitted_total{action=\"ENTER\"}[5m]))" }]
+      },
+      {
+        "type": "stat", "title": "Exits (5m)",
+        "gridPos": {"x":6,"y":18,"w":6,"h":5},
+        "targets": [{ "datasource":{"type":"prometheus","uid":"Prometheus"}, "expr":"sum(increase(pairs_orders_emitted_total{action=\"EXIT\"}[5m]))" }]
+      }
+    ],
+    "schemaVersion": 38, "version": 1
+  },
+  "overwrite": true
+}

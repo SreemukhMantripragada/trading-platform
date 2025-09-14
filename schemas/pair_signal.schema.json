@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "pair_signal",
+  "type": "object",
+  "required": ["pair_id","a_symbol","b_symbol","beta","action","ts"],
+  "properties": {
+    "pair_id": { "type": "string" },
+    "a_symbol": { "type": "string" },
+    "b_symbol": { "type": "string" },
+    "beta": { "type": "number", "minimum": 0 },
+    "z": { "type": "number" },
+    "action": {
+      "type": "string",
+      "enum": ["ENTER_LONG_A_SHORT_B","ENTER_SHORT_A_LONG_B","EXIT"]
+    },
+    "risk_bucket": { "type": "string", "enum": ["LOW","MED","HIGH"] },
+    "pxA": { "type": "number", "minimum": 0 },
+    "pxB": { "type": "number", "minimum": 0 },
+    "ts": { "type": "integer" }
+  },
+  "additionalProperties": true
+}

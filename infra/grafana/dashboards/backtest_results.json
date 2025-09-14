@@ -1,0 +1,70 @@
+{
+  "dashboard": {
+    "title": "Backtest Results",
+    "refresh": "10s",
+    "panels": [
+      {
+        "type": "stat",
+        "title": "Runs (today)",
+        "id": 1,
+        "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+        "options": { "reduceOptions": { "calcs": ["sum"] } },
+        "targets": [{
+          "datasource": { "type": "postgres", "uid": "Postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*)::double precision AS v FROM bt_runs WHERE created_at::date = CURRENT_DATE;"
+        }]
+      },
+      {
+        "type": "table",
+        "title": "Top-N (Sharpe) — change N/TF via variables",
+        "id": 2,
+        "gridPos": { "x": 0, "y": 4, "w": 24, "h": 16 },
+        "options": { "showHeader": true, "footer": { "show": true } },
+        "targets": [{
+          "datasource": { "type": "postgres", "uid": "Postgres" },
+          "format": "table",
+          "rawSql": "WITH agg AS (\n  SELECT r.run_id, r.strategy, r.params_json, r.universe, r.notes,\n         AVG(m.sharpe) AS sharpe, SUM(m.trades) AS trades, SUM(m.pnl) AS pnl, AVG(m.max_dd_pct) AS max_dd\n  FROM bt_runs r JOIN bt_metrics m USING(run_id)\n  WHERE r.tf = COALESCE(NULLIF('${TF}',''), r.tf)\n  GROUP BY r.run_id, r.strategy, r.params_json, r.universe, r.notes\n)\nSELECT run_id, strategy, params_json, universe, notes, sharpe, trades, pnl, max_dd\nFROM agg WHERE trades >= ${MIN_TRADES:100}\nORDER BY sharpe DESC\nLIMIT ${TOPN:10};"
+        }]
+      },
+      {
+        "type": "stat",
+        "title": "Selected TF",
+        "id": 3,
+        "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [{
+          "datasource": { "type": "postgres", "uid": "Postgres" },
+          "format": "table",
+          "rawSql": "SELECT 1 AS v;"
+        }]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "TF",
+          "type": "custom",
+          "query": "1m,3m,5m,15m",
+          "current": { "text": "1m", "value": "1m", "selected": true }
+        },
+        {
+          "name": "TOPN",
+          "type": "custom",
+          "query": "5,10,20,50",
+          "current": { "text": "10", "value": "10", "selected": true }
+        },
+        {
+          "name": "MIN_TRADES",
+          "type": "custom",
+          "query": "20,50,100,200",
+          "current": { "text": "100", "value": "100", "selected": true }
+        }
+      ]
+    },
+    "time": { "from": "now-7d", "to": "now" },
+    "schemaVersion": 38,
+    "version": 1
+  },
+  "overwrite": true
+}

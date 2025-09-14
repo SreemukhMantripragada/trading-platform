@@ -1,0 +1,22 @@
+{
+  "dashboard": {
+    "title": "Budget Overview",
+    "refresh": "5s",
+    "panels": [
+      {"type":"stat","title":"Broker cash (INR)","gridPos":{"x":0,"y":0,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"budget_cash_broker_inr"}]},
+      {"type":"stat","title":"Deployable (INR)","gridPos":{"x":6,"y":0,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"budget_cash_deployable_inr"}]},
+      {"type":"table","title":"Per-bucket Headroom","gridPos":{"x":0,"y":4,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"budget_headroom_inr"}]},
+      {"type":"table","title":"Per-bucket Reserved","gridPos":{"x":12,"y":4,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"budget_reserved_inr"}]},
+      {"type":"stat","title":"Allowed (5m)","gridPos":{"x":0,"y":12,"w":6,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(increase(budget_guard_allowed_total[5m]))"}]},
+      {"type":"table","title":"Rejected by reason (5m)","gridPos":{"x":6,"y":12,"w":18,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(increase(budget_guard_rejected_total[5m])) by (bucket,reason)"}]}
+    ],
+    "schemaVersion": 38, "version": 1
+  },
+  "overwrite": true
+}

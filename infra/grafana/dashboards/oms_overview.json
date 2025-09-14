@@ -1,0 +1,23 @@
+{
+  "dashboard": {
+    "title": "OMS Overview",
+    "refresh": "5s",
+    "panels": [
+      {"type":"stat","title":"Open Orders by Status","gridPos":{"x":0,"y":0,"w":12,"h":5},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(oms_open_orders) by (status)"}]},
+      {"type":"graph","title":"Bucket Notional (≈ MTM)","gridPos":{"x":12,"y":0,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"oms_bucket_notional_inr"}]},
+      {"type":"table","title":"Net Positions","gridPos":{"x":0,"y":5,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"oms_open_position_qty"}]},
+      {"type":"graph","title":"Budget Used per Bucket","gridPos":{"x":12,"y":8,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"budget_used_inr"}]},
+      {"type":"stat","title":"Guard: Allowed vs Rejected (5m)","gridPos":{"x":0,"y":13,"w":24,"h":5},
+       "targets":[
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(rate(orders_allowed_total[5m]))"},
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum(rate(orders_rejected_total[5m]))"}
+       ]}
+    ],
+    "schemaVersion": 38, "version": 1
+  },
+  "overwrite": true
+}

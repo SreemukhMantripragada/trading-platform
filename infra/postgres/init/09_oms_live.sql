@@ -36,6 +36,6 @@ BEGIN
       strategy        text,
       risk_bucket     text
     );
-    CREATE INDEX oms_fills_day_sym_idx ON oms_fills((ts::date), symbol);
+    CREATE INDEX IF NOT EXISTS oms_fills_sym_ts_idx ON oms_fills(symbol, ts);
   END IF;
 END$$;

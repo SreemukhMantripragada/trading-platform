@@ -30,22 +30,6 @@ CREATE TABLE IF NOT EXISTS fills(
 );
 CREATE INDEX IF NOT EXISTS fills_order_idx ON fills(order_id);
 
--- Positions: prefer bigint and only create if absent (08_positions will own it)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema='public' AND table_name='positions'
-  ) THEN
-    CREATE TABLE positions(
-      symbol        text PRIMARY KEY,
-      qty           bigint NOT NULL DEFAULT 0,
-      avg_price     double precision NOT NULL DEFAULT 0,
-      realized_pnl  double precision NOT NULL DEFAULT 0,
-      updated_at    timestamptz NOT NULL DEFAULT now()
-    );
-  END IF;
-END$$;
 
 -- Detailed blotter view (owns the 'blotter' name)
 CREATE OR REPLACE VIEW blotter AS

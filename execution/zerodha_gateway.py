@@ -1,162 +1,126 @@
-"""
-Zerodha canary gateway (live/dry-run) with real fill polling:
-- On place: writes broker_orders(coid, broker_order_id, status='PENDING', raw)
-- Poll task every 4–8s: kite.orders() -> update broker_orders & OMS; emit real fill (est=False) when COMPLETE
-"""
+# execution/zerodha_gateway.py
 from __future__ import annotations
-import os, time, asyncio, asyncpg, ujson as json, random
-from typing import Dict, Any
+import os, asyncio, ujson as json, time
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+import asyncpg
 from dotenv import load_dotenv
 from kiteconnect import KiteConnect, exceptions as kz_ex
-
-from execution.oms import OMS
-from libs.zerodha_map import ZMap
 
 load_dotenv(".env"); load_dotenv("infra/.env")
 
 BROKER=os.getenv("KAFKA_BROKER","localhost:9092")
-ORD_TOPIC=os.getenv("ORD_TOPIC","orders")
+IN_TOPIC=os.getenv("IN_TOPIC","orders.allowed")
 FILL_TOPIC=os.getenv("FILL_TOPIC","fills")
-GROUP_ID=os.getenv("KAFKA_GROUP","gateway_live")
-
-KITE_API_KEY=os.getenv("KITE_API_KEY")
-TOKEN_FILE=os.getenv("ZERODHA_TOKEN_FILE","ingestion/auth/token.json")
+GROUP_ID=os.getenv("KAFKA_GROUP","zerodha_gateway")
+DRY_RUN=int(os.getenv("DRY_RUN","1"))
+RATE_PER_SEC=float(os.getenv("BROKER_RATE_PER_SEC","3.0"))
 
 PG_HOST=os.getenv("POSTGRES_HOST","localhost"); PG_PORT=int(os.getenv("POSTGRES_PORT","5432"))
 PG_DB=os.getenv("POSTGRES_DB","trading"); PG_USER=os.getenv("POSTGRES_USER","trader"); PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
 
-CANARY_BUCKETS=set((os.getenv("CANARY_BUCKETS","MED") or "MED").replace(" ","").split(","))
-DRY_RUN = os.getenv("DRY_RUN","1") == "1"
-QPS=float(os.getenv("QPS","3"))
-PRODUCT=os.getenv("PRODUCT","MIS")
+KITE_API_KEY=os.getenv("KITE_API_KEY")
+TOKEN_FILE=os.getenv("ZERODHA_TOKEN_FILE","ingestion/auth/token.json")
 
-def _load_access_token() -> str:
-    import json as pyjson
-    t=pyjson.load(open(TOKEN_FILE))
-    if t.get("api_key") != KITE_API_KEY: raise SystemExit("Token file API key mismatch.")
-    return t["access_token"]
+class TokenBucket:
+    def __init__(self, rate_per_sec:float, burst:int=3):
+        self.rate=rate_per_sec; self.cap=float(burst); self.tokens=float(burst); self.t=time.time()
+    async def take(self):
+        while True:
+            now=time.time()
+            self.tokens=min(self.cap, self.tokens+(now-self.t)*self.rate); self.t=now
+            if self.tokens>=1.0:
+                self.tokens-=1.0; return
+            await asyncio.sleep(0.05)
+
+def load_access_token():
+    import json as _j
+    if os.getenv("KITE_ACCESS_TOKEN"): return os.getenv("KITE_ACCESS_TOKEN")
+    t=_j.load(open(TOKEN_FILE)); return t["access_token"]
+
+async def upsert_order(con, o:dict, broker_order_id:str=None, status:str="NEW"):
+    await con.execute("""
+      INSERT INTO live_orders(client_order_id, symbol, side, qty, px_ref, strategy, risk_bucket, broker_order_id, status, extra)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT (client_order_id) DO UPDATE
+      SET broker_order_id=COALESCE(EXCLUDED.broker_order_id, live_orders.broker_order_id),
+          status=EXCLUDED.status,
+          updated_at=now(),
+          extra=COALESCE(EXCLUDED.extra, live_orders.extra)
+    """, o["client_order_id"], o["symbol"], o["side"], int(o["qty"]), float((o.get("extra") or {}).get("px_ref") or 0.0),
+       o.get("strategy"), o.get("risk_bucket"), broker_order_id, status, json.dumps(o.get("extra") or {}))
 
 async def main():
-    access=_load_access_token()
-    kite=KiteConnect(api_key=KITE_API_KEY); kite.set_access_token(access)
-    try: prof=kite.profile(); print(f"[gw] live={not DRY_RUN}; user={prof.get('user_id')}")
-    except kz_ex.TokenException: raise SystemExit("Zerodha token invalid/expired.")
-
+    # DB + Kafka
     pool=await asyncpg.create_pool(host=PG_HOST, port=PG_PORT, database=PG_DB, user=PG_USER, password=PG_PASS)
-    oms=OMS(pool); zmap=ZMap("configs/tokens.csv")
-
-    consumer = AIOKafkaConsumer(
-        ORD_TOPIC, bootstrap_servers=BROKER, enable_auto_commit=False,
-        auto_offset_reset="earliest", group_id=GROUP_ID,
+    cons=AIOKafkaConsumer(
+        IN_TOPIC, bootstrap_servers=BROKER, group_id=GROUP_ID, enable_auto_commit=False, auto_offset_reset="latest",
         value_deserializer=lambda b: json.loads(b.decode()), key_deserializer=lambda b: b.decode() if b else None
     )
-    producer = AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
-    await consumer.start(); await producer.start()
+    prod=AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
+    await cons.start(); await prod.start()
 
-    # throttle
-    min_interval = 1.0 / max(QPS, 0.1); last_t=0.0
-    async def maybe_sleep():
-        nonlocal last_t
-        now=time.time(); delta=now-last_t
-        if delta<min_interval: await asyncio.sleep(min_interval-delta)
-        last_t=time.time()
+    # Rate limit
+    bucket=TokenBucket(RATE_PER_SEC, burst=3)
 
-    # --- POLLER: convert estimated -> real fills --------------------------------
-    async def poll_fills():
-        while True:
-            try:
-                if DRY_RUN:
-                    await asyncio.sleep(6 + random.random()*2); continue
-                ords=kite.orders()  # all orders today
-                # index by order_id
-                by_id={o.get("order_id"): o for o in ords if o.get("order_id")}
-                # fetch pending broker_orders
-                async with pool.acquire() as con:
-                    rows=await con.fetch("SELECT coid, broker_order_id, status FROM broker_orders WHERE status IS NULL OR status IN ('PENDING','OPEN')")
-                for r in rows:
-                    coid=r["coid"]; oid=r["broker_order_id"]
-                    O=by_id.get(oid)
-                    if not O: continue
-                    status=(O.get("status") or "").upper()
-                    avg=O.get("average_price"); filled=O.get("filled_quantity")
-                    raw=O
-                    async with pool.acquire() as con:
-                        await con.execute(
-                          "UPDATE broker_orders SET status=$1, avg_price=$2, filled_qty=$3, raw=$4::jsonb, updated_at=now() WHERE coid=$5",
-                          status, float(avg or 0.0), int(filled or 0), json.dumps(raw), coid
-                        )
-                    # transitions
-                    if status=="COMPLETE":
-                        # fetch OMS order to enrich
-                        od = await oms.get_order(coid)
-                        if od:
-                            f={
-                              "ts": int(time.time()), "symbol": od["symbol"], "side": od["side"], "qty": int(filled or od["qty"]),
-                              "price": float(avg or 0.0), "fees_inr": 0.0, "client_order_id": coid,
-                              "strategy": od["strategy"], "risk_bucket": od["risk_bucket"], "source": "zerodha_gateway", "order_id": oid,
-                              "est": False
-                            }
-                            await producer.send_and_wait(FILL_TOPIC, json.dumps(f).encode(), key=od["symbol"].encode())
-                            await oms.transition(coid, "FILLED", note="broker COMPLETE", meta={"order_id": oid, "px": f["price"]})
-                    elif status in ("REJECTED","CANCELLED"):
-                        await oms.transition(coid, status, note=f"broker {status}")
-            except Exception as e:
-                print(f"[gw/poll] {e}")
-            await asyncio.sleep(6 + random.random()*2)
+    # Broker (or dry)
+    kite=None
+    if not DRY_RUN:
+        access=load_access_token()
+        kite=KiteConnect(api_key=KITE_API_KEY); kite.set_access_token(access)
+        try: kite.profile()
+        except kz_ex.TokenException: raise SystemExit("Zerodha token invalid; re-auth.")
 
-    poll_task=asyncio.create_task(poll_fills())
-
-    print(f"[gw] consuming {ORD_TOPIC} → placing (dry_run={DRY_RUN}) for buckets {','.join(CANARY_BUCKETS)}")
+    print(f"[gateway] consuming {IN_TOPIC} (DRY_RUN={DRY_RUN}) → fills:{FILL_TOPIC}")
     try:
-        while True:
-            batches=await consumer.getmany(timeout_ms=500, max_records=500)
-            for _tp,msgs in batches.items():
-                for m in msgs:
-                    o=m.value; coid=o["client_order_id"]
-                    if o.get("risk_bucket") not in CANARY_BUCKETS: continue
-                    sym=o["symbol"]; side=o["side"].upper()
-                    if side=="EXIT": side="SELL"
-                    await oms.upsert_new(o); await oms.transition(coid, "ACK", note="accepted by Zerodha gateway")
-                    info=zmap.resolve(sym)
-                    if not info:
-                        await oms.transition(coid, "REJECTED", note="symbol not in tokens.csv"); continue
-                    await maybe_sleep()
-                    try:
-                        if DRY_RUN:
-                            order_id=f"DRY-{int(time.time()*1000)}"
-                            resp={"order_id": order_id}
-                        else:
-                            tr_type="BUY" if side=="BUY" else "SELL"
-                            resp=kite.place_order(
-                                variety=kite.VARIETY_REGULAR,
-                                exchange=info["exchange"], tradingsymbol=info["tradingsymbol"],
-                                transaction_type=tr_type, quantity=int(o["qty"]),
-                                order_type=kite.ORDER_TYPE_MARKET, product=PRODUCT
-                            )
-                            order_id=resp.get("order_id","?")
-                        # record broker_orders row (PENDING)
-                        async with pool.acquire() as con:
-                            await con.execute(
-                              "INSERT INTO broker_orders(coid, broker_order_id, status, raw) VALUES($1,$2,$3,$4::jsonb) "
-                              "ON CONFLICT (coid) DO UPDATE SET broker_order_id=EXCLUDED.broker_order_id, status=EXCLUDED.status, raw=EXCLUDED.raw, updated_at=now()",
-                              coid, resp.get("order_id","?"), "PENDING", json.dumps(resp)
-                            )
-                        # emit conservative est fill immediately (so PnL charts move)
-                        est=(o.get("extra") or {}).get("costs_est") or {}
-                        px=float(est.get("est_fill_price") or 0.0); fees=float(est.get("est_total_cost_inr") or 0.0)
-                        f={"ts": int(time.time()), "symbol": sym, "side": side, "qty": int(o["qty"]), "price": px,
-                           "fees_inr": fees, "client_order_id": coid, "strategy": o["strategy"], "risk_bucket": o["risk_bucket"],
-                           "source":"zerodha_gateway", "order_id": resp.get("order_id","?"), "est": True}
-                        await producer.send_and_wait(FILL_TOPIC, json.dumps(f).encode(), key=sym.encode())
-                    except kz_ex.KiteException as e:
-                        await oms.transition(coid, "REJECTED", note=str(e))
-                    except Exception as e:
-                        await oms.transition(coid, "REJECTED", note=f"unknown: {e}")
-            await consumer.commit()
+        async for m in cons:
+            o=m.value
+            coid=o["client_order_id"]
+            try:
+                async with pool.acquire() as con:
+                    # Idempotency: if already acknowledged to a terminal status, skip
+                    r=await con.fetchrow("SELECT status FROM live_orders WHERE client_order_id=$1", coid)
+                    if r and r["status"] in ("REJECTED","FILLED","CANCELLED"):
+                        await cons.commit(); continue
+
+                    # Upsert as NEW/PENDING
+                    await upsert_order(con, o, status="PENDING")
+
+                await bucket.take()
+
+                if DRY_RUN:
+                    # Simulate immediate fill at px_ref
+                    px = float((o.get("extra") or {}).get("px_ref") or 0.0)
+                    async with pool.acquire() as con:
+                        await upsert_order(con, o, broker_order_id=f"SIM-{coid}", status="FILLED")
+                        await con.execute(
+                            "INSERT INTO fills(client_order_id, symbol, side, qty, price, strategy, risk_bucket) VALUES($1,$2,$3,$4,$5,$6,$7)",
+                            coid, o["symbol"], o["side"], int(o["qty"]), px, o.get("strategy"), o.get("risk_bucket")
+                        )
+                    fill = {"client_order_id": coid, "symbol": o["symbol"], "side": o["side"], "qty": int(o["qty"]), "price": px, "ts": int(time.time())}
+                    await prod.send_and_wait(FILL_TOPIC, json.dumps(fill).encode(), key=o["symbol"].encode())
+                else:
+                    # Real broker call (very basic MARKET example)
+                    tradingsymbol=o["symbol"]; exchange="NSE"
+                    qty=int(o["qty"]); side=o["side"]
+                    variety="regular"; product="MIS"; order_type="MARKET"; validity="DAY"
+                    if side=="BUY":
+                        resp=kite.place_order(variety=variety, exchange=exchange, tradingsymbol=tradingsymbol,
+                                              transaction_type="BUY", quantity=qty, product=product,
+                                              order_type=order_type, validity=validity)
+                    else:
+                        resp=kite.place_order(variety=variety, exchange=exchange, tradingsymbol=tradingsymbol,
+                                              transaction_type="SELL", quantity=qty, product=product,
+                                              order_type=order_type, validity=validity)
+                    broker_id=str(resp["order_id"])
+                    async with pool.acquire() as con:
+                        await upsert_order(con, o, broker_order_id=broker_id, status="ACK")
+
+                await cons.commit()
+            except Exception as e:
+                print("[gateway] error:", e)
+                await cons.commit()
     finally:
-        poll_task.cancel()
-        await consumer.stop(); await producer.stop(); await pool.close()
+        await cons.stop(); await prod.stop(); await pool.close()
 
 if __name__=="__main__":
     asyncio.run(main())

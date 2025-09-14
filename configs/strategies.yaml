@@ -1,0 +1,38 @@
+symbols: ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"]
+
+risk_pct_per_trade: 0.01   # 1% of bucket-per-trade when stop not provided
+
+strategies:
+  - name: ENSEMBLE_CORE
+    module: strategy.strategies.ensemble_kofn
+    class: EnsembleKofN
+    params:
+      k: 2
+      bucket: MED
+      weights: { SMACross: 1.0, RSIReversion: 1.0, ORBBreakout: 1.2, VWAPReversion: 1.0 }
+      members:
+        - module: strategy.strategies.sma_cross
+          class: SMACross
+          params: { fast: 10, slow: 20, cooldown_sec: 45, bucket: MED }
+
+        - module: strategy.strategies.rsi_reversion
+          class: RSIReversion
+          params: { period: 14, low_th: 30, high_th: 70, cooldown_sec: 45, bucket: LOW }
+
+        - module: strategy.strategies.orb_breakout
+          class: ORBBreakout
+          params: { window_min: 15, stop_bps: 50, cooldown_sec: 60, bucket: HIGH }
+
+        - module: strategy.strategies.vwap_reversion
+          class: VWAPReversion
+          params: { band_bps: 20, stop_bps: 40, cooldown_sec: 45, bucket: LOW }
+
+# Standalone debugging runs (disable ensemble above if you enable these):
+#  - name: ORB_15M
+#    module: strategy.strategies.orb_breakout
+#    class: ORBBreakout
+#    params: { window_min: 15, stop_bps: 50, bucket: HIGH }
+#  - name: VWAP_MR_20bps
+#    module: strategy.strategies.vwap_reversion
+#    class: VWAPReversion
+#    params: { band_bps: 20, stop_bps: 40, bucket: LOW }

@@ -1,0 +1,25 @@
+# ops/stack.plan.yaml
+processes:
+  - name: bars1s
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=ticks OUT_TOPIC=bars.1s METRICS_PORT=8003 python compute/bar_builder_1s.py"
+    port: 8003
+
+  - name: bars1m
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=bars.1s OUT_TOPIC=bars.1m METRICS_PORT=8004 python compute/bar_aggregator.py"
+    port: 8004
+
+  - name: runner
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=bars.1m OUT_TOPIC=orders METRICS_PORT=8011 python strategy/runner_unified.py"
+    port: 8011
+
+  - name: budget_guard
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=orders OUT_TOPIC=orders.allowed METRICS_PORT=8023 python risk/order_budget_guard.py"
+    port: 8023
+
+  - name: gateway
+    cmd: "DRY_RUN=1 KAFKA_BROKER=localhost:9092 IN_TOPIC=orders.allowed FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py"
+    port: 8017
+
+  - name: pnl
+    cmd: "METRICS_PORT=8024 python execution/accounting_pnl.py"
+    port: 8024

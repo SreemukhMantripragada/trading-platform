@@ -1,0 +1,21 @@
+{
+  "dashboard": {
+    "title": "PnL Overview",
+    "refresh": "5s",
+    "panels": [
+      {"type":"graph","title":"Realized PnL by symbol (5m rate)","gridPos":{"x":0,"y":0,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"sum by (symbol,bucket) (rate(acct_pnl_realized_inr[5m]))"}]},
+      {"type":"graph","title":"Unrealized PnL by symbol","gridPos":{"x":12,"y":0,"w":12,"h":8},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"acct_pnl_unrealized_inr"}]},
+      {"type":"stat","title":"Equity LOW/MED/HIGH","gridPos":{"x":0,"y":8,"w":12,"h":4},
+       "targets":[{"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"acct_equity_inr"}]},
+      {"type":"table","title":"Latest PnL snapshot","gridPos":{"x":12,"y":8,"w":12,"h":8},
+       "targets":[
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"acct_pnl_realized_inr"},
+         {"datasource":{"type":"prometheus","uid":"Prometheus"},"expr":"acct_pnl_unrealized_inr"}
+       ]}
+    ],
+    "schemaVersion": 38, "version": 1
+  },
+  "overwrite": true
+}

@@ -5,7 +5,7 @@ import asyncpg
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 import yaml
 from libs.signal import Signal, NONE
-from strategy.sma_cross import SMA_Cross
+from strategy.strategies.sma_cross import SMA_Cross
 from strategy.rsi_reversion import RSI_Reversion
 from indicators.sma import SMA
 from indicators.rsi import RSI
