@@ -1,3 +1,31 @@
+"""
+This script builds a list of instrument tokens from a specified universe of stocks for use with the Zerodha Kite Connect API.
+
+Workflow:
+1. Loads API credentials and file paths from environment variables.
+2. Loads the Zerodha access token from a JSON file, ensuring the API key matches.
+3. Reads a universe CSV file containing tradingsymbols and exchanges.
+4. Fetches the full list of NSE instruments from Kite Connect and saves a copy for auditing.
+5. For each symbol in the universe, attempts to resolve the corresponding instrument token:
+    - Prefers cash equity instruments (instrument_type == 'EQ', no expiry, lot_size == 1).
+    - Falls back to the first matching row if no perfect match is found.
+6. Writes the resolved tokens to a CSV file for downstream use.
+7. Warns about any symbols that could not be resolved.
+
+Environment Variables:
+- KITE_API_KEY: Zerodha Kite Connect API key.
+- ZERODHA_TOKEN_FILE: Path to the access token JSON file.
+- UNIVERSE_CSV: Path to the input universe CSV file.
+- TOKENS_OUT: Path to the output tokens CSV file.
+- INSTR_OUTDIR: Directory to save the instruments dump.
+
+Usage:
+     python build_tokens_from_universe.py
+
+Dependencies:
+- kiteconnect
+- python-dotenv
+"""
 import os, csv, json, sys
 from datetime import datetime, timezone
 from dotenv import load_dotenv

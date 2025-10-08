@@ -195,7 +195,7 @@ def _same_row(db_row, o,h,l,c,vol) -> bool:
 async def main():
     today = date.today()
     start_day = today - timedelta(days=DAYS_BACK)
-    end_day   = today - timedelta(days=1)
+    end_day   = today - timedelta(days=0)
 
     kite   = _load_kite()
     tokens = _load_tokens_from_csv()
