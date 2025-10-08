@@ -22,6 +22,7 @@ packaging==25.0
 pandas==2.3.2
 patsy==1.0.1
 prometheus_client==0.20.0
+pyarrow==21.0.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
@@ -45,4 +46,5 @@ typing_extensions==4.15.0
 tzdata==2025.2
 ujson==5.10.0
 urllib3==2.5.0
+wheel==0.45.1
 zope.interface==8.0

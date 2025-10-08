@@ -1,18 +1,16 @@
 
-.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi
+.PHONY: up down ps logs doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi
 
 up: 
 	cd infra && docker compose up -d && docker compose ps
 down: 
+	cd infra && docker compose down 
+reset:
 	cd infra && docker compose down -v
 ps: 
 	cd infra && docker compose ps
 logs: 
 	cd infra && docker compose logs -f
-
-topics:
-	docker cp infra/scripts/create-topics.sh kafka:/usr/local/bin/create-topics
-	docker exec -t kafka bash -lc 'BROKER=kafka:29092 RF=1 DRY_RUN=0 /usr/local/bin/create-topics'
 doctor: 
 	python3 monitoring/doctor.py
 
@@ -256,6 +254,9 @@ kite-exchange:
 
 kite-verify:
 	. .venv/bin/activate; python -c 'import os, json; from dotenv import load_dotenv; from kiteconnect import KiteConnect; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); T=json.load(open("ingestion/auth/token.json")); tok=T.get("access_token"); assert tok, "token.json missing/empty"; k=KiteConnect(api_key=ak); k.set_access_token(tok); p=k.profile(); print("✅ Token valid for:", p.get("user_id"), p.get("user_name"))'
+
+kite-capital:
+	. .venv/bin/activate; python -c 'import os, json; from dotenv import load_dotenv; from kiteconnect import KiteConnect; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); T=json.load(open("ingestion/auth/token.json")); tok=T.get("access_token"); assert tok, "token.json missing/empty"; k=KiteConnect(api_key=ak); k.set_access_token(tok); m=k.margins("equity"); print("💰 Balance:", m.get("net"), "Available:", m["available"]["cash"])'
 
 kite-clear-token:
 	rm -f ingestion/auth/token.json; echo "🗑  deleted ingestion/auth/token.json"
