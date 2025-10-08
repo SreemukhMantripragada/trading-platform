@@ -1,2 +1,12 @@
 infra/.env
 .venv
+archive
+# local/dev junk
+.vscode/
+__pycache__/
+*.pyc
+runs/
+data/backtests/
+
+# secrets
+ingestion/auth/token.json
