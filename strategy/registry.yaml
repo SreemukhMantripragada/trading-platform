@@ -1,102 +1,90 @@
 strategies:
-  - module: strategy.sma_cross
-    class: SMA_Cross
+  - module: strategy.strategies.sma_cross
+    class: SMACross
+    name: SMACross
     bucket: LOW
     params: { fast: 20, slow: 50 }
 
-  - module: strategy.ema_cross
-    class: EMA_Cross
+  - module: strategy.strategies.ema_cross
+    class: EMACross
+    name: EMACross
     bucket: MED
     params: { fast: 12, slow: 26 }
 
-  - module: strategy.macd_signal
-    class: MACD_Signal
+  - module: strategy.strategies.macd_signal
+    class: MACDSignal
+    name: MACDSignal
     bucket: MED
     params: { fast: 12, slow: 26, signal: 9 }
 
-  - module: strategy.bollinger_breakout
-    class: Bollinger_Breakout
+  - module: strategy.strategies.bollinger_breakout
+    class: BollingerBreakout
+    name: BollingerBreakout
     bucket: HIGH
     params: { n: 20, k: 2.0 }
 
-  - module: strategy.bollinger_reversion
-    class: Bollinger_Reversion
+  - module: strategy.strategies.bollinger_reversion
+    class: BollingerReversion
+    name: BollingerReversion
     bucket: LOW
     params: { n: 20, k: 2.0, exit_band: 0.0 }
 
-  - module: strategy.donchian_breakout
+  - module: strategy.strategies.donchian_breakout
     class: Donchian_Breakout
+    name: Donchian_Breakout
     bucket: MED
     params: { n: 20 }
 
-  - module: strategy.opening_range_breakout
+  - module: strategy.strategies.opening_range_breakout
     class: OpeningRangeBreakout
+    name: OpeningRangeBreakout
     bucket: MED
     params: { minutes: 15 }
 
-  - module: strategy.vwap_reversion
+  - module: strategy.strategies.vwap_reversion
     class: VWAP_Reversion
+    name: VWAP_Reversion
     bucket: LOW
     params: { win: 60, k: 0.003 }
 
-  - module: strategy.momentum_roc
+  - module: strategy.strategies.momentum_roc
     class: Momentum_ROC
+    name: Momentum_ROC
     bucket: MED
     params: { n: 20, th: 0.005 }
 
-  - module: strategy.cci_reversion
+  - module: strategy.strategies.cci_reversion
     class: CCI_Reversion
+    name: CCI_Reversion
     bucket: LOW
     params: { n: 20 }
 
-  - module: strategy.keltner_breakout
+  - module: strategy.strategies.keltner_breakout
     class: Keltner_Breakout
+    name: Keltner_Breakout
     bucket: HIGH
     params: { n_ma: 20, n_atr: 14, mult: 2.0 }
 
-  - module: strategy.heikin_trend
+  - module: strategy.strategies.heikin_trend
     class: HeikinAshi_Trend
+    name: HeikinAshi_Trend
     bucket: MED
     params: {}
 
-  - module: strategy.meanreversion_zscore
+  - module: strategy.strategies.meanreversion_zscore
     class: MeanRev_ZScore
+    name: MeanRev_ZScore
     bucket: LOW
     params: { win: 60, z_enter: 2.0, z_exit: 0.5 }
 
-  - module: strategy.supertrend_trend
+  - module: strategy.strategies.supertrend_trend
     class: Supertrend_Trend
+    name: Supertrend_Trend
     bucket: HIGH
     params: { n: 10, mult: 3.0 }
 
-  - module: strategy.rsi_reversion
+  - module: strategy.strategies.rsi_reversion
     class: RSI_Reversion
+    name: RSI_Reversion
     bucket: LOW
     params: { period: 14, buy_threshold: 30.0, sell_threshold: 70.0, exit_band: 50.0, warmup_bars: 60 }
-
-
-  - name: SMA_CROSS
-    type: leaf
-    module: strategy.examples.basic_strategies
-    class: SMA_Cross
-    bucket: MED
-    params: { fast: 10, slow: 50 }
-
-  - name: RSI_REV
-    type: leaf
-    module: strategy.examples.basic_strategies
-    class: RSI_Reversion
-    bucket: LOW
-    params: { period: 14, overbought: 70, oversold: 30 }
-
-  # Ensemble that combines both
-  - name: ENS_VOTES
-    type: ensemble
-    module: strategy.ensemble_strategy
-    class: EnsembleStrategy
-    bucket: MED
-    params:
-      mode: votes
-      k: 2
-      agree_side: true
-      children: [ "SMA_CROSS", "RSI_REV" ]     # refer by name
