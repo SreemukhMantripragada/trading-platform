@@ -4,8 +4,8 @@ BROKER="${BROKER:-kafka:29092}"
 
 create_topic() {
   local t="$1"; local p="${2:-3}"; local rf="${3:-1}"
-  if ! kafka-topics.sh --bootstrap-server "$BROKER" --list | grep -q "^${t}$"; then
-    kafka-topics.sh --bootstrap-server "$BROKER" --create --topic "$t" --partitions "$p" --replication-factor "$rf"
+  if ! /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "$BROKER" --list | grep -q "^${t}$"; then
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "$BROKER" --create --topic "$t" --partitions "$p" --replication-factor "$rf"
     echo "created $t"
   fi
 }

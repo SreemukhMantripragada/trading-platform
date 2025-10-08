@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS bars_1m_golden (
   loaded_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (symbol, ts)
 );
+
+CREATE INDEX IF NOT EXISTS bars_1m_golden_symbol_ts_idx
+ON bars_1m_golden (symbol, ts);

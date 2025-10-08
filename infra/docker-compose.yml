@@ -1,51 +1,70 @@
 name: trading-stack
-
 services:
-  # Zookeeper service for Kafka coordination
   zookeeper:
     image: bitnami/zookeeper:3.9
     container_name: zookeeper
     restart: unless-stopped
-    environment: [ "ALLOW_ANONYMOUS_LOGIN=yes" ]
-    ports: [ "${ZOOKEEPER_CLIENT_PORT}:2181" ] # Expose Zookeeper client port
+    env_file: [ ".env" ]
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=${ZOOKEEPER_ALLOW_ANONYMOUS_LOGIN}
+    ports: [ "${ZOOKEEPER_CLIENT_PORT}:2181" ]
     networks: [ core ]
-    volumes: [ "zookeeper_data:/bitnami" ] # Persist Zookeeper data
+    tmpfs:
+      - /bitnami/zookeeper:size=256m,mode=0755,uid=1001,gid=1001
 
-  # Kafka broker service
   kafka:
     image: bitnami/kafka:3.6
     container_name: kafka
     restart: unless-stopped
-    depends_on: [ zookeeper ] # Wait for Zookeeper to be ready
+    depends_on: [ zookeeper ]
+    env_file: [ ".env" ]
     environment:
-      - KAFKA_BROKER_ID=${KAFKA_BROKER_ID}
+      - KAFKA_CFG_BROKER_ID=${KAFKA_BROKER_ID}
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:${ZOOKEEPER_CLIENT_PORT}
+
+      # Listeners
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_INTERNAL://:29092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:${KAFKA_OUTSIDE_PORT},PLAINTEXT_INTERNAL://kafka:${KAFKA_INSIDE_PORT}
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://${KAFKA_OUTSIDE_HOST}:${KAFKA_OUTSIDE_PORT},PLAINTEXT_INTERNAL://kafka:${KAFKA_INSIDE_PORT}
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT_INTERNAL
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=false
-      - ALLOW_PLAINTEXT_LISTENER=yes
-    ports: [ "${KAFKA_OUTSIDE_PORT}:9092" ] # Expose Kafka broker port
-    healthcheck:
-      test: ["CMD","bash","-lc","kafka-topics.sh --bootstrap-server kafka:${KAFKA_INSIDE_PORT} --list"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    networks: [ core ]
-    volumes: [ "kafka_data:/bitnami" ] # Persist Kafka data
 
-  # Kafka UI for managing and monitoring Kafka
+      # Single-broker internals
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_CFG_DEFAULT_REPLICATION_FACTOR=1
+
+      # Switches
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=${KAFKA_AUTO_CREATE_TOPICS_ENABLE}
+      - ALLOW_PLAINTEXT_LISTENER=${ALLOW_PLAINTEXT_LISTENER}
+
+    ports: [ "${KAFKA_OUTSIDE_PORT}:9092" ]
+
+    # Reliable readiness probe
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server kafka:${KAFKA_INSIDE_PORT} >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+    # Bitnami runs as uid/gid 1001
+    tmpfs:
+      - /bitnami/kafka:size=1g,mode=0755,uid=1001,gid=1001
+
+    networks: [ core ]
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     restart: unless-stopped
-    depends_on: [ kafka ] # Wait for Kafka to be ready
+    depends_on: [ kafka ]
+    env_file: [ ".env" ]
     environment:
-      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_NAME=${KUI_CLUSTER_NAME}
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:${KAFKA_INSIDE_PORT}
       - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:${ZOOKEEPER_CLIENT_PORT}
-    ports: [ "8080:8080" ] # Expose Kafka UI on port 8080
+    ports: [ "${KAFKA_UI_PORT}:8080" ]
     networks: [ core ]
 
   kafka-exporter:
@@ -53,73 +72,68 @@ services:
     container_name: kafka-exporter
     restart: unless-stopped
     command:
-      - --kafka.server=kafka:${KAFKA_INSIDE_PORT:-29092}
-    ports: [ "9308:9308" ]
+      - --kafka.server=kafka:${KAFKA_INSIDE_PORT}
+    ports: [ "${KAFKA_EXPORTER_PORT}:9308" ]
     networks: [ core ]
     depends_on: [ kafka ]
-  # PostgreSQL database service
+
+  # SIMPLE topics init: wait for Kafka to be healthy, then run script once.
+  kafka-topics-init:
+    image: bitnami/kafka:3.6
+    container_name: kafka-topics-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file: [ ".env" ]
+    environment:
+      - BROKER=kafka:${KAFKA_INSIDE_PORT}
+      - RF=1
+      - DRY_RUN=${TOPICS_DRY_RUN}
+    command: bash -lc "/create-topics.sh"
+    restart: "no"
+    volumes:
+      - ./scripts/create-topics.sh:/create-topics.sh:ro
+    networks: [ core ]
+
   postgres:
     image: postgres:15
     container_name: postgres
     restart: unless-stopped
+    env_file: [ ".env" ]
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-    ports: [ "${POSTGRES_PORT}:5432" ] # Expose PostgreSQL port
+    ports: [ "${POSTGRES_PORT}:5432" ]
     networks: [ core ]
-    volumes: [ "pg_data:/var/lib/postgresql/data" ] # Persist database data
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
 
-  # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro # Mount Prometheus config
-    ports: [ "${PROMETHEUS_PORT}:9090" ] # Expose Prometheus UI
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: [ "${PROMETHEUS_PORT}:9090" ]
     networks: [ core ]
 
-  # Grafana for metrics visualization
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
-    environment: [ "GF_SECURITY_ADMIN_PASSWORD=admin" ]
-    ports: [ "${GRAFANA_PORT}:3000" ] # Expose Grafana UI
+    env_file: [ ".env" ]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    ports: [ "${GRAFANA_PORT}:3000" ]
     networks: [ core ]
     volumes:
-      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources # Mount Grafana datasource config
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/dashboards:/var/lib/grafana/dashboards
 
-  app-bars1s:
-    build:
-      context: ..
-      dockerfile: Dockerfile.app
-    image: trading-app:latest
-    command: bash -lc "python compute/bar_builder_1s.py"
-    environment:
-      - KAFKA_BROKER=kafka:${KAFKA_INSIDE_PORT}
-      - IN_TOPIC=ticks
-      - OUT_TOPIC=bars.1s
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - METRICS_PORT=8003
-    ports: [ "8003:8003" ]
-    networks: [ core ]
-    profiles: [ app ]
-    depends_on: [ kafka, postgres ]
-
-# Define the shared Docker network for all services
 networks: { core: {} }
 
-# Define persistent named volumes for data storage
 volumes:
-  zookeeper_data: {}
-  kafka_data: {}
   pg_data: {}
-

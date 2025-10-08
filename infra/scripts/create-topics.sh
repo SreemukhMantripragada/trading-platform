@@ -95,8 +95,10 @@ kconfig "bars.1m.golden" "retention.ms=$BARS1M_RETENTION_MS,segment.bytes=$SEGME
 
 # orders pipeline
 kcreate "orders" "$P_ORDERS" "$RF"
-# compact+delete keeps latest state per key while retaining history windows
 kconfig "orders" "cleanup.policy=[compact,delete],min.cleanable.dirty.ratio=$CLEANABLE_RATIO,retention.ms=$ORDERS_RETENTION_MS,segment.bytes=$SEGMENT_BYTES"
+
+kcreate "orders.sized" "$P_ORDERS" "$RF"
+kconfig "orders.sized" "cleanup.policy=[compact,delete],min.cleanable.dirty.ratio=$CLEANABLE_RATIO,retention.ms=$ALLOWED_RETENTION_MS,segment.bytes=$SEGMENT_BYTES"
 
 kcreate "orders.allowed" "$P_ORDERS" "$RF"
 kconfig "orders.allowed" "cleanup.policy=[compact,delete],min.cleanable.dirty.ratio=$CLEANABLE_RATIO,retention.ms=$ALLOWED_RETENTION_MS,segment.bytes=$SEGMENT_BYTES"
