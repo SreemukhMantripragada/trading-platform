@@ -215,5 +215,3 @@ Supporting domains:
 - [docs/execution.md](docs/execution.md)
 - [docs/monitoring.md](docs/monitoring.md)
 - [docs/scoring.md](docs/scoring.md)
-
-Have suggestions or questions? Open an issue or reach out to the trading platform maintainers.
