@@ -1,0 +1,147 @@
+# configs/coarse_grid.yaml
+# Coarse grid — broad but sane. The fine stage will shrink around winners.
+
+symbols:
+  from_tokens_csv: configs/tokens.csv     # rows where subscribe==1
+
+# Timeframes (minutes) — no 1m
+timeframes_min: [3, 5, 15]
+
+# Parallelism
+processes: auto
+
+# Data window
+days_lookback: 60
+
+# Backtest sizing
+per_stock_capital: 100000
+allow_short: true
+
+exit_policy:
+  mode: strategy   # one of: strategy | fixed
+  # when mode = fixed:
+  # tp_pct: 1.5     # take-profit in %, e.g., 1.2 => +1.2%
+  # sl_pct: 0.8      # stop-loss in %, e.g., 0.8  => -0.8%
+  # optional: hard intraday squareoff (still recommended for both modes)
+  squareoff_ist: "15:25"
+
+# Optional lightweight costs (used by grid_runner_parallel)
+costs:
+  slippage_bps: 5          # per side
+  flat_per_side: 0.0
+  pct_taxes: 0.0005        # per side
+
+strategies:
+  - name: EMA_CROSS
+    module: strategy.strategies.ema_cross
+    class: EMACross
+    params_by_tf:
+      "3":  { fast: [5,10,12],  slow: [50,150,200] }
+      "5":  { fast: [8,12],     slow: [50,100,200] }
+      "15": { fast: [10,20],    slow: [80,150,200] }
+    constraints: "fast < slow"
+
+  - name: MACD_SIGNAL
+    module: strategy.strategies.macd_signal
+    class: MACD
+    params_by_tf:
+      "3":  { fast: [10,12], slow: [20,26,35], signal: [5,9] }
+      "5":  { fast: [10],    slow: [20,35],    signal: [5,9] }
+      "15": { fast: [12],    slow: [26,35],    signal: [9] }
+    constraints: "fast < slow"
+
+  - name: ROC_MOMENTUM
+    module: strategy.strategies.momentum_roc
+    class: ROCMomentum
+    params_by_tf:
+      "3":  { period: [10,20,30], band: [0.10,0.25] }
+      "5":  { period: [12,20,30], band: [0.10,0.20] }
+      "15": { period: [14,30],    band: [0.05,0.15] }
+
+  - name: BB_BREAKOUT
+    module: strategy.strategies.bollinger_breakout
+    class: BollingerBreakout
+    params_by_tf:
+      "3":  { period: [10,20], k: [2.0, 2.4] }
+      "5":  { period: [20],    k: [2.0, 2.3] }
+      "15": { period: [20,30], k: [2.0, 2.3] }
+
+  - name: BOLLINGER_REVERSION
+    module: strategy.strategies.bollinger_reversion
+    class: BollingerReversion
+    params_by_tf:
+      "3":  { period: [20,30], k: [2.5, 3.0] }
+      "5":  { period: [20],    k: [2.2, 2.6] }
+      "15": { period: [20,30], k: [2.2, 2.5] }
+
+  - name: DONCHIAN_BREAKOUT
+    module: strategy.strategies.donchian_breakout
+    class: DonchianBreakout
+    params_by_tf:
+      "3":  { period: [10,20,40] }
+      "5":  { period: [20,40] }
+      "15": { period: [20,55] }
+
+  - name: KELTNER_BREAKOUT
+    module: strategy.strategies.keltner_breakout
+    class: KeltnerBreakout
+    params_by_tf:
+      "3":  { ema_period: [20], atr_period: [10,20], mult: [2.2, 2.8] }
+      "5":  { ema_period: [20], atr_period: [14,20], mult: [2.0, 2.5] }
+      "15": { ema_period: [20], atr_period: [14,20], mult: [1.8, 2.3] }
+
+  - name: SUPERTREND
+    module: strategy.strategies.supertrend_trend
+    class: SupertrendTrend
+    params_by_tf:
+      "3":  { atr_period: [7,14],  mult: [2.8, 3.2] }
+      "5":  { atr_period: [7,14],  mult: [2.3, 3.0] }
+      "15": { atr_period: [10,14], mult: [2.0, 2.5] }
+
+  - name: HEIKIN_TREND
+    module: strategy.strategies.heikin_trend
+    class: HeikinTrend
+    params_by_tf:
+      "3":  {}
+      "5":  {}
+      "15": {}
+
+  - name: CCI_REVERSION
+    module: strategy.strategies.cci_reversion
+    class: CCIReversion
+    params_by_tf:
+      "3":  { period: [14,30], th_hi: [150,200], th_lo: [-150,-200] }
+      "5":  { period: [20,30], th_hi: [120,150], th_lo: [-120,-150] }
+      "15": { period: [20,30], th_hi: [100,150], th_lo: [-100,-150] }
+
+  - name: MEAN_REVERSION_ZSCORE
+    module: strategy.strategies.meanreversion_zscore
+    class: MeanReversionZScore
+    params_by_tf:
+      "3":  { period: [20,50], z_entry: [2.0, 2.6] }
+      "5":  { period: [20,50], z_entry: [1.8, 2.4] }
+      "15": { period: [20,50], z_entry: [1.5, 2.2] }
+
+  - name: VWAP_REVERSION
+    module: strategy.strategies.vwap_reversion
+    class: VWAPReversion
+    params_by_tf:
+      "3":  { z: [1.2, 1.6] }
+      "5":  { z: [1.0, 1.5] }
+      "15": { z: [0.9, 1.2] }
+
+  - name: ENSEMBLE_KOFN
+    module: strategy.strategies.ensemble_kofn
+    class: EnsembleKofN
+    params_by_tf:
+      "3":  { k: [3], rsi_period: [14], rsi_lb: [25,30], rsi_ub: [70,75], ema_period: [20], roc_lb: [10], macd_fast: [12], macd_slow: [26], macd_signal: [9] }
+      "5":  { k: [3], rsi_period: [14], rsi_lb: [30],    rsi_ub: [70],    ema_period: [20], roc_lb: [12], macd_fast: [12], macd_slow: [26], macd_signal: [9] }
+      "15": { k: [3], rsi_period: [14], rsi_lb: [30],    rsi_ub: [70],    ema_period: [20], roc_lb: [14], macd_fast: [12], macd_slow: [26], macd_signal: [9] }
+
+  - name: ORB_BRK
+    module: strategy.strategies.orb_breakout
+    class: ORBBreakout
+    params_by_tf:
+      "3":  { orb_minutes: [10, 15, 30] }
+      "5":  { orb_minutes: [15, 30] }
+      "15": { orb_minutes: [30] }
