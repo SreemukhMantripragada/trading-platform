@@ -1,110 +1,193 @@
-# strategy/strategies/orb_breakout.py
+# strategy/strategies/orb_breakout_v2.py
 from __future__ import annotations
-import time
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
-from strategy.base import StrategyBase, Context, Bar
+from typing import Optional, Tuple, Dict, Any
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from strategy.base import BaseStrategy, Candle, Signal
 
-def ist_day_epoch(ts_utc: int) -> int:
-    """Return YYYYMMDD of the IST date for a UTC epoch seconds."""
-    d = datetime.fromtimestamp(ts_utc, tz=timezone.utc).astimezone(IST).date()
-    return d.year * 10000 + d.month * 100 + d.day
+__all__ = ["ORBBreakout"]
 
-def ist_minutes(ts_utc: int) -> int:
-    """Minutes since IST midnight for the given UTC epoch seconds."""
-    dt = datetime.fromtimestamp(ts_utc, tz=timezone.utc).astimezone(IST)
-    return dt.hour * 60 + dt.minute
+IST = ZoneInfo("Asia/Kolkata")
 
-class ORBBreakout(StrategyBase):
+
+class ORBBreakout(BaseStrategy):
     """
-    Opening Range Breakout:
-      - Build high/low over first `window_min` minutes after 09:15 IST.
-      - After window closes, BUY on break above range high; SELL on break below range low.
-      - One signal per side per day; optional cooldown to avoid churn.
-      - Stop as entry * (1 ± stop_bps/1e4).
+    Opening Range Breakout (ORB), IST session.
 
-    Params:
-      window_min: int (e.g., 15)
-      stop_bps: int (e.g., 50 => 0.50%)
-      bucket: LOW/MED/HIGH
-      cooldown_sec: gate between signals on same symbol
+    Behavior:
+      - Build opening range [HH, LL] from 09:15 IST for `orb_minutes`.
+      - After the window ends, emit a one-shot breakout:
+          BUY  when close > HH
+          SELL when close < LL
+      - Optionally apply stop/target as percentages of breakout price.
+
+    Usage (unchanged):
+        strat = ORBBreakout(orb_minutes=15, stop_pct=0.006, tgt_pct=0.012)
+        sig = strat.on_bar(candle)
+
+    Params (self.params):
+        orb_minutes (int)   default 15     # opening range duration in minutes
+        start_h     (int)   default 9      # start hour (local, IST)
+        start_m     (int)   default 15     # start minute (local, IST)
+        tz          (str)   default "Asia/Kolkata"
+        stop_pct    (float) default 0.0
+        tgt_pct     (float) default 0.0
+        edge_only   (bool)  default True   # keep as one-shot (recommended)
+
+    Grid config (optional):
+        timeframe + params_by_tf supported -> 'orb_minutes' if you drive it that way.
     """
-    def __init__(self, window_min: int = 15, stop_bps: int = 50,
-                 bucket: str = "MED", cooldown_sec: int = 60):
-        assert window_min > 0
-        self.window_min = int(window_min)
-        self.stop_bps = int(stop_bps)
-        self.default_bucket = bucket.upper()
-        self.cool = int(cooldown_sec)
+    name = "ORB_BRK"
 
-        # intraday state
-        self._day = {}         # sym -> yyyymmdd (IST)
-        self._rng = {}         # sym -> {"hi":float, "lo":float, "done":bool}
-        self._last_ts_ok = {}  # sym -> next allowed wall time (epoch s)
-        self._fired_buy = {}   # sym,day -> bool
-        self._fired_sell = {}  # sym,day -> bool
+    _DEFAULTS = dict(
+        orb_minutes=15,
+        start_h=9,
+        start_m=15,
+        tz="Asia/Kolkata",
+        stop_pct=0.0,
+        tgt_pct=0.0,
+        edge_only=True,  # ORB usually one-shot per day
+    )
 
-    def _reset_if_new_day(self, sym: str, day: int):
-        if self._day.get(sym) != day:
-            self._day[sym] = day
-            self._rng[sym] = {"hi": float("-inf"), "lo": float("inf"), "done": False}
-            self._fired_buy[(sym, day)]  = False
-            self._fired_sell[(sym, day)] = False
+    # --- state (per day) ---
+    _day_key: Optional[tuple[int, int, int]]
+    _orb_high: Optional[float]
+    _orb_low: Optional[float]
+    _orb_done: bool
+    _tz: ZoneInfo
 
-    def _gate(self, sym: str) -> bool:
-        now = int(time.time())
-        nxt = int(self._last_ts_ok.get(sym, 0))
-        if now < nxt:
-            return False
-        self._last_ts_ok[sym] = now + self.cool
-        return True
+    def __init__(
+        self,
+        *,
+        # direct overrides
+        orb_minutes: Optional[int] = None,
+        start_h: Optional[int] = None,
+        start_m: Optional[int] = None,
+        tz: Optional[str] = None,
+        stop_pct: Optional[float] = None,
+        tgt_pct: Optional[float] = None,
+        edge_only: Optional[bool] = None,
+        # grid-style
+        timeframe: Optional[str] = None,
+        params_by_tf: Optional[Dict[str, Dict[str, Any]]] = None,
+        # passthrough
+        params: Optional[dict] = None,
+        **base_kwargs,
+    ) -> None:
+        merged = dict(self._DEFAULTS)
+        if params:
+            merged.update(params)
 
-    def decide(self, symbol: str, bar: Bar, ctx: Context) -> Optional[Dict[str, Any]]:
-        day = ist_day_epoch(bar.ts)
-        self._reset_if_new_day(symbol, day)
+        # merge per-timeframe config if provided
+        if params_by_tf and timeframe is not None and timeframe in params_by_tf:
+            tf_params = dict(params_by_tf[timeframe])
+            if "orb_minutes" not in tf_params:
+                if "period" in tf_params:
+                    tf_params["orb_minutes"] = tf_params["period"]
+            merged.update(tf_params)
 
-        mins = ist_minutes(bar.ts)
-        start = 9 * 60 + 15
-        end_open = start + self.window_min
+        # explicit kwargs override
+        if orb_minutes is not None: merged["orb_minutes"] = int(orb_minutes)
+        if start_h is not None:     merged["start_h"] = int(start_h)
+        if start_m is not None:     merged["start_m"] = int(start_m)
+        if tz is not None:          merged["tz"] = str(tz)
+        if stop_pct is not None:    merged["stop_pct"] = float(stop_pct)
+        if tgt_pct is not None:     merged["tgt_pct"] = float(tgt_pct)
+        if edge_only is not None:   merged["edge_only"] = bool(edge_only)
 
-        R = self._rng[symbol]
+        # normalize
+        merged["orb_minutes"] = max(1, int(merged.get("orb_minutes", 15)))
+        merged["start_h"] = max(0, min(23, int(merged.get("start_h", 9))))
+        merged["start_m"] = max(0, min(59, int(merged.get("start_m", 15))))
+        merged["tz"] = str(merged.get("tz", "Asia/Kolkata"))
 
-        # Build opening range while in the window
-        if start <= mins < end_open:
-            R["hi"] = max(R["hi"], bar.h)
-            R["lo"] = min(R["lo"], bar.l)
-            return None
+        super().__init__(params=merged, **base_kwargs)
 
-        # Mark window done once we cross end
-        if not R["done"] and mins >= end_open and R["hi"] > R["lo"]:
-            R["done"] = True
+        # ORB doesn't need global history warmup; we gate by clock window
+        self.warmup = 1
 
-        if not R["done"]:
-            return None  # do nothing before the opening range completes
+        self._tz = ZoneInfo(self.params["tz"])
+        self._day_key = None
+        self._orb_high = None
+        self._orb_low = None
+        self._orb_done = False
 
-        # Post-window breakout checks
-        if not self._fired_buy[(symbol, day)] and bar.c > R["hi"] and self._gate(symbol):
-            stop = bar.c * (1.0 - self.stop_bps / 10000.0)
-            self._fired_buy[(symbol, day)] = True
-            return {
-                "action": "BUY",
-                "symbol": symbol,
-                "reason": f"ORB {self.window_min}m breakout > {R['hi']:.2f}",
-                "risk_bucket": self.default_bucket,
-                "stop_px": stop
-            }
+    # keep external call unchanged
+    def on_bar(self, bar: Candle) -> Signal:
+        return self.step(bar)
 
-        if not self._fired_sell[(symbol, day)] and bar.c < R["lo"] and self._gate(symbol):
-            stop = bar.c * (1.0 + self.stop_bps / 10000.0)
-            self._fired_sell[(symbol, day)] = True
-            return {
-                "action": "SELL",
-                "symbol": symbol,
-                "reason": f"ORB {self.window_min}m breakdown < {R['lo']:.2f}",
-                "risk_bucket": self.default_bucket,
-                "stop_px": stop
-            }
+    def on_start(self, symbol: str) -> None:
+        # per-session reset
+        self._day_key = None
+        self._orb_high = None
+        self._orb_low = None
+        self._orb_done = False
 
-        return None
+    def on_reset(self) -> None:
+        super().on_reset()
+        self._day_key = None
+        self._orb_high = None
+        self._orb_low = None
+        self._orb_done = False
+
+    # -------- core ----------
+    def _on_bar(self, hist: Tuple[Candle, ...], bar: Candle) -> Signal:
+        minutes = int(self.params["orb_minutes"])
+        start_h = int(self.params["start_h"])
+        start_m = int(self.params["start_m"])
+        edge_only = bool(self.params["edge_only"])
+
+        # Local trading day (tz-aware)
+        local_dt = bar.ts.astimezone(self._tz)
+        dkey = (local_dt.year, local_dt.month, local_dt.day)
+
+        # New day -> reset
+        if self._day_key != dkey:
+            self._day_key = dkey
+            self._orb_high = None
+            self._orb_low = None
+            self._orb_done = False
+
+        # Opening range window
+        start_dt = local_dt.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+        end_dt = start_dt + timedelta(minutes=minutes)
+
+        if start_dt <= local_dt < end_dt:
+            # build ORB
+            self._orb_high = max(self._orb_high if self._orb_high is not None else bar.h, bar.h)
+            self._orb_low = min(self._orb_low if self._orb_low is not None else bar.l, bar.l)
+            return Signal.flat("orb-building")
+
+        # If ORB not ready yet (e.g., before start window or missing bars)
+        if self._orb_high is None or self._orb_low is None:
+            return Signal.flat("orb-not-ready")
+
+        c = bar.c
+        stop_pct = float(self.params.get("stop_pct") or 0.0)
+        tgt_pct  = float(self.params.get("tgt_pct")  or 0.0)
+
+        if not self._orb_done:
+            if c > self._orb_high:
+                self._orb_done = True
+                stop = (c * (1 - stop_pct)) if stop_pct > 0 else None
+                tgt  = (c * (1 + tgt_pct))  if tgt_pct  > 0 else None
+                return Signal.buy(confidence=0.8, stop=stop, target=tgt,
+                                  reason=f"ORB up (n={minutes})")
+            if c < self._orb_low:
+                self._orb_done = True
+                stop = (c * (1 + stop_pct)) if stop_pct > 0 else None
+                tgt  = (c * (1 - tgt_pct))  if tgt_pct  > 0 else None
+                return Signal.sell(confidence=0.8, stop=stop, target=tgt,
+                                   reason=f"ORB down (n={minutes})")
+
+        # If you want continuous stance after breakout:
+        if not edge_only and self._orb_done:
+            if c > self._orb_high:
+                return Signal.buy(confidence=0.6,
+                                  reason=f"above ORB high (n={minutes})")
+            if c < self._orb_low:
+                return Signal.sell(confidence=0.6,
+                                   reason=f"below ORB low (n={minutes})")
+
+        return Signal.flat("no-breakout")
