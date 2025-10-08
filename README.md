@@ -7,6 +7,7 @@ Algorithmic trading stack for ingesting live Zerodha ticks, aggregating to tradi
 - [Getting Started](#getting-started)
 - [Runtime Workflows](#runtime-workflows)
 - [Module Guide](#module-guide)
+- [Scoring Engine](#scoring-engine)
 - [Data & Storage](#data--storage)
 - [Operations & Observability](#operations--observability)
 - [Development Notes](#development-notes)
@@ -160,6 +161,14 @@ flowchart TD
 - `research/pairs_maker.py` and `analytics/pairs/find_pairs.py` surface candidate spreads for the live pairs engines.
 - `ui/backtest_app.py` provides a Streamlit dashboard (`make bt-ui`) for inspecting results.
 
+## Scoring Engine
+- **Purpose**: Standardize how candidate strategy configurations are evaluated during grid searches and nightly ranking runs.
+- **Location**: `backtest/scorer.py` exposes composable functions such as `apply_constraints`, `score_rows`, and `aggregate_by_config`.
+- **Inputs**: Row-wise metrics including normalized return (`R`), Sharpe, Sortino, win rate, drawdown, turnover, average holding time, and optional penalties or timestamps.
+- **Process**: Metrics are winsorized and z-scored per (strategy × timeframe) cohort to enable cross-symbol comparisons. Defaults enforce positive returns, drawdown thresholds, freshness decay, and configurable weights.
+- **Outputs**: Adds `score` fields, rejection reasons, and helper selections (`select_topk_per_symbol_tf`, `decide_next_day`) that feed directly into `configs/next_day*.yaml`.
+- **Customization**: Override `DEFAULT_GATES` and `DEFAULT_WEIGHTS` in caller code (`backtest/grid_runner_parallel.py`, `tools/promote_topn.py`) to favor bespoke objectives. See [docs/scoring.md](docs/scoring.md) for tuning guidance.
+
 ## Module Guide
 Directory map with deeper dives:
 
@@ -205,5 +214,6 @@ Supporting domains:
 - [docs/risk.md](docs/risk.md)
 - [docs/execution.md](docs/execution.md)
 - [docs/monitoring.md](docs/monitoring.md)
+- [docs/scoring.md](docs/scoring.md)
 
 Have suggestions or questions? Open an issue or reach out to the trading platform maintainers.
