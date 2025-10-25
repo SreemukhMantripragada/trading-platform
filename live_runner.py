@@ -36,7 +36,8 @@ ORDER_TYPE            = os.getenv("ORDER_TYPE", "MARKET")
 LEVERAGE_PER_STOCK    = float(os.getenv("LEVERAGE_PER_STOCK", "5.0"))
 MAX_QTY_PER_TRADE     = int(os.getenv("MAX_QTY_PER_TRADE", "5000"))
 CASH_FALLBACK_FRACTION= float(os.getenv("CASH_FALLBACK_FRACTION", "0.10"))
-PER_STOCK_BASE_CASH   = float(os.getenv("PER_STOCK_BASE_CASH", "15000"))
+# Default notional = PER_STOCK_BASE_CASH * LEVERAGE_PER_STOCK; 40k * 5x ≈ ₹2L
+PER_STOCK_BASE_CASH   = float(os.getenv("PER_STOCK_BASE_CASH", "40000"))
 PNL_LOG_INTERVAL_SEC  = int(os.getenv("PNL_LOG_INTERVAL_SEC", "60"))
 
 # Historical warmup
@@ -258,14 +259,15 @@ class LiveState:
 # ----------- Sizing helper -----------
 def calc_qty(price: float, stop: Optional[float], avail_cash: float, risk_per_trade: float, leverage: float) -> int:
     """
-    Simple size: spend (PER_STOCK_BASE_CASH * leverage * 0.9) notionally.
+    Simple size: spend (PER_STOCK_BASE_CASH * leverage) notionally.
     Reservation is handled separately; here we only compute qty.
     """
     if price <= 0:
         return 0
     if avail_cash < PER_STOCK_BASE_CASH:
         return 0
-    qty = int(math.floor(max(0.0, (leverage * PER_STOCK_BASE_CASH * 0.9) / price)))
+    target_notional = leverage * PER_STOCK_BASE_CASH
+    qty = int(math.floor(max(0.0, target_notional / price)))
     return max(0, min(qty, MAX_QTY_PER_TRADE))
 
 def record_unrealized_pnl(states: Dict[Tuple[str,str,int], LiveState]) -> Dict[str, float]:

@@ -1,0 +1,46 @@
+name: Pre-Market Prep
+
+on:
+  schedule:
+    # 03:00 UTC ≈ 08:30 IST on trading days
+    - cron: "0 3 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  pre_market:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore secrets
+        run: |
+          echo "POSTGRES_HOST=${{ secrets.PG_HOST }}" >> $GITHUB_ENV
+          echo "POSTGRES_PORT=${{ secrets.PG_PORT }}" >> $GITHUB_ENV
+          echo "POSTGRES_DB=${{ secrets.PG_DB }}" >> $GITHUB_ENV
+          echo "POSTGRES_USER=${{ secrets.PG_USER }}" >> $GITHUB_ENV
+          echo "POSTGRES_PASSWORD=${{ secrets.PG_PASS }}" >> $GITHUB_ENV
+          echo "KITE_API_KEY=${{ secrets.KITE_API_KEY }}" >> $GITHUB_ENV
+          echo "ZERODHA_TOKEN_FILE=ingestion/auth/token.json" >> $GITHUB_ENV
+
+      - name: Install Zerodha session token
+        run: |
+          mkdir -p ingestion/auth
+          printf '%s\n' "${{ secrets.ZERODHA_TOKEN_JSON }}" > ingestion/auth/token.json
+
+      - name: Prepare live whitelist
+        run: python orchestrator/pre_market_setup.py --apply --max-age-hours 18
+
+      - name: Upload summary
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-market-summary
+          path: runs/pre_market/summary.json

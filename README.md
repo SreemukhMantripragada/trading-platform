@@ -56,6 +56,13 @@ flowchart TD
 - Risk + paper execution: `make risk-v2` then `make exec-paper-matcher`
 - Flip to live Zerodha: `make zerodha-live-allowed` followed by `make zerodha-poller`
 
+## Process Supervisor
+- Launch coordinated stacks with `python orchestrator/process_supervisor.py` (prefers `.venv/bin/python`, loads `.env`/`infra/.env` automatically).
+- Configure services in `configs/process_supervisor.yaml`; `{{python}}` expands to the resolved interpreter and `{{root}}` to the repo root.
+- Set `stop_on_exit: false` on auxiliaries you do not want to bring the stack down; override per-service env vars under `env:`.
+- Logs stream to `runs/logs/process_supervisor/stack_<timestamp>` by default; change `log_dir` in the config if needed.
+- Ctrl+C or a failing service triggers graceful SIGTERM fan-out followed by SIGKILL after `shutdown_grace_seconds`.
+
 ## Architecture in Brief
 | Stage | Focus | Entry Points |
 | --- | --- | --- |

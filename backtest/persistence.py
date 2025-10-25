@@ -285,6 +285,7 @@ def write_next_day_yaml(out_path: str,
         ntr = int(stats.get("n_trades", 0) or 0)
         wr  = float(stats.get("win_rate", 0.0) or 0.0)
         ppt = float(stats.get("profit_per_trade", (pnl / ntr) if ntr > 0 else 0.0))
+        hold = float(stats.get("avg_hold_min", 0.0) or 0.0)
         row = {
             "symbol": str(r.get("symbol")),
             "strategy": str(r.get("strategy")),
@@ -299,6 +300,7 @@ def write_next_day_yaml(out_path: str,
                 "n_trades": int(ntr),
                 "win_rate": round(wr, 4),
                 "profit_per_trade": round(ppt, 4),
+                "avg_hold_min": round(hold, 4),
             }
         }
         doc["selections"].append(row)

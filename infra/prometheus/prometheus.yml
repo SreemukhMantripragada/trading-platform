@@ -23,48 +23,20 @@ scrape_configs:
     scheme: http
     scrape_timeout: 3s
     static_configs:
-      - targets: ['host.docker.internal:8001']
-        labels: { service: smoke_producer }
-      - targets: ['host.docker.internal:8002']
-        labels: { service: ticks_consumer }
-      - targets: ['host.docker.internal:8003']
-        labels: { service: bar_builder_1s }
-      - targets: ['host.docker.internal:8004']
-        labels: { service: bar_aggregator_1m }
-      - targets: ['host.docker.internal:8005']
-        labels: { service: bar_aggregator_multi }
-      - targets: ['host.docker.internal:8008']
+      - targets: ['host.docker.internal:8111']
         labels: { service: zerodha_ws }
-      - targets: ['host.docker.internal:8010']
-        labels: { service: dlq_consumer }
-      - targets: ['host.docker.internal:8011']
-        labels: { service: strategy_runner }
-      - targets: ['host.docker.internal:8012']
-        labels: { service: risk_guard }
-      - targets: ['host.docker.internal:8013']
-        labels: { service: paper_gateway }
-      - targets: ['host.docker.internal:8014']
-        labels: { service: matcher_cpp }
-      - targets: ['host.docker.internal:8015']
-        labels: { service: oms_core }
-      - targets: ['host.docker.internal:8016']
-        labels: { service: exit_engine }
-      - targets: ['host.docker.internal:8017']
-        labels: { service: zerodha_gateway_live }
-      - targets: ['host.docker.internal:8018']
-        labels: { service: oms_lifecycle_exporter }
-      - targets: ['host.docker.internal:8019']
-        labels: { service: gateway_oms_exporter }
-      - targets: ['host.docker.internal:8020']
-        labels: { service: pairs_live }
-      - targets: ['host.docker.internal:8021']
-        labels: { service: pairs_exporter }
-      - targets: ['host.docker.internal:8022']
-        labels: { service: risk_drawdown_exporter }
-      - targets: ['host.docker.internal:8023']
-        labels: { service: broker_cash_poller }
-      - targets: ['host.docker.internal:8024']
-        labels: { service: eod_orchestrator }
+      - targets: ['host.docker.internal:8112']
+        labels: { service: bar_builder_1s }
+      - targets: ['host.docker.internal:8113']
+        labels: { service: bar_aggregator_multi }
+      - targets: ['host.docker.internal:8114']
+        labels: { service: pair_watch }
+      - targets: ['host.docker.internal:8115']
+        labels: { service: pairs_executor }
+      - targets: ['host.docker.internal:8116']
+        labels: { service: risk_manager }
+      - targets: ['host.docker.internal:8117']
+        labels: { service: paper_matcher }
 
   # 3) Kafka metrics (optional) — add a kafka-exporter container that exposes :9308
   - job_name: kafka

@@ -1,0 +1,231 @@
+selections:
+- symbol: INDUSINDBK-SHREECEM
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 10913.803299999796
+  score: 28.897034276769038
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 103174.3767
+    n_trades: 27
+    win_rate: 62.963
+    profit_per_trade: 3821.2732
+    avg_hold_min: 145.5556
+- symbol: NAUKRI-WIPRO
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+  max_dd: 11346.994657000032
+  score: 6.328342103095956
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 31644.5657
+    n_trades: 90
+    win_rate: 64.4444
+    profit_per_trade: 351.6063
+    avg_hold_min: 71.9
+- symbol: BANKBARODA-GODREJCP
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+  max_dd: 15520.810267000212
+  score: 5.557090476592627
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 31676.5973
+    n_trades: 77
+    win_rate: 61.039
+    profit_per_trade: 411.3844
+    avg_hold_min: 70.4416
+- symbol: ADANIENSOL-PNB
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+  max_dd: 4129.861275999989
+  score: 5.05442277853622
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 33122.0535
+    n_trades: 57
+    win_rate: 73.6842
+    profit_per_trade: 581.0887
+    avg_hold_min: 144.6491
+- symbol: BAJAJHFL-PIDILITIND
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 5006.524366000045
+  score: 4.191392225112053
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 16885.6053
+    n_trades: 30
+    win_rate: 66.6667
+    profit_per_trade: 562.8535
+    avg_hold_min: 133.0
+- symbol: INDHOTEL-ULTRACEMCO
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 7677.668320000348
+  score: 2.8350157741031303
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 15091.7659
+    n_trades: 19
+    win_rate: 63.1579
+    profit_per_trade: 794.3035
+    avg_hold_min: 178.4211
+- symbol: HINDUNILVR-PFC
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+  max_dd: 3768.883809999901
+  score: 2.752821967402552
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 19506.8962
+    n_trades: 57
+    win_rate: 64.9123
+    profit_per_trade: 342.2262
+    avg_hold_min: 112.8947
+- symbol: AXISBANK-PNB
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 3003.893843999971
+  score: 2.684330711414445
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 11477.3353
+    n_trades: 28
+    win_rate: 64.2857
+    profit_per_trade: 409.9048
+    avg_hold_min: 151.0714
+- symbol: ADANIENSOL-CANBK
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 4832.367155000026
+  score: 2.0057049421693343
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 9887.6618
+    n_trades: 26
+    win_rate: 65.3846
+    profit_per_trade: 380.2947
+    avg_hold_min: 139.0385
+- symbol: SBIN-TATACONSUM
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+  max_dd: 8817.121215000065
+  score: 1.8861888234971969
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 13558.1275
+    n_trades: 90
+    win_rate: 60.0
+    profit_per_trade: 150.6459
+    avg_hold_min: 94.6333
+- symbol: RECLTD-AMBUJACEM
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+  max_dd: 13059.304715000202
+  score: 1.4054453132303613
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 11139.8061
+    n_trades: 81
+    win_rate: 61.7284
+    profit_per_trade: 137.5285
+    avg_hold_min: 65.5556
+- symbol: SUNPHARMA-TATAPOWER
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 3557.176149999953
+  score: 1.3430101883957308
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 6905.4484
+    n_trades: 24
+    win_rate: 66.6667
+    profit_per_trade: 287.727
+    avg_hold_min: 166.875
+- symbol: AMBUJACEM-IRFC
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+  max_dd: 5379.748979999816
+  score: 1.1342239122220383
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 10179.237
+    n_trades: 58
+    win_rate: 60.3448
+    profit_per_trade: 175.5041
+    avg_hold_min: 83.0172
+- symbol: HEROMOTOCO-INDUSINDBK
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+  max_dd: 10284.001319999921
+  score: 0.9967105452025666
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 13821.5831
+    n_trades: 55
+    win_rate: 61.8182
+    profit_per_trade: 251.3015
+    avg_hold_min: 96.1818
+- symbol: GAIL-TATAPOWER
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+  max_dd: 6534.800922000133
+  score: 0.28698168827372633
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 6603.0155
+    n_trades: 20
+    win_rate: 60.0
+    profit_per_trade: 330.1508
+    avg_hold_min: 162.0
+budgets:
+  LOW: 0.4
+  MED: 0.35
+  HIGH: 0.25
+reserve_frac: 0.2

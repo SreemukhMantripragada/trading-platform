@@ -10,6 +10,8 @@ Run:
 """
 import os, csv, json, time, queue, threading, asyncio, ujson as ujson
 from datetime import datetime, timezone
+
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from aiokafka import AIOKafkaProducer
 from kiteconnect import KiteTicker, KiteConnect, exceptions as kz_ex
 
@@ -18,6 +20,22 @@ API_KEY=os.getenv("KITE_API_KEY")
 TOKEN_FILE=os.getenv("ZERODHA_TOKEN_FILE","ingestion/auth/token.json")
 BROKER=os.getenv("KAFKA_BROKER","localhost:9092")
 TOPIC=os.getenv("TICKS_TOPIC","ticks")
+METRICS_PORT = int(os.getenv("METRICS_PORT", "8111"))
+
+QUEUE_DEPTH = Gauge("zerodha_queue_depth", "Number of ticks buffered for Kafka dispatch")
+TICKS_RECEIVED = Counter("zerodha_ticks_received_total", "Ticks forwarded to Kafka", ["symbol"])
+TICKS_DROPPED = Counter("zerodha_ticks_dropped_total", "Ticks dropped due to full queue")
+BATCH_SIZE = Histogram(
+    "zerodha_tick_batch_size",
+    "Batch size of ticks forwarded to Kafka",
+    buckets=(1, 5, 10, 25, 50, 100, 250, 500),
+)
+TICK_LATENCY = Histogram(
+    "zerodha_tick_latency_seconds",
+    "Latency between exchange timestamp and Kafka publish",
+    buckets=(0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5),
+)
+WS_EVENTS = Counter("zerodha_ws_events_total", "Websocket lifecycle events", ["event"])
 
 def load_tokens():
     out=[]; map_ts={}
@@ -47,9 +65,13 @@ async def drain_to_kafka(q:queue.Queue, symmap:dict):
                 # batch up to 500 msgs or 250 ms
                 for _ in range(500):
                     batch.append(q.get(timeout=0.25))
+                    QUEUE_DEPTH.set(q.qsize())
             except queue.Empty:
                 pass
-            if not batch: continue
+            size = len(batch)
+            if size == 0:
+                continue
+            BATCH_SIZE.observe(size)
             for t in batch:
                 tok = t["instrument_token"]; sym=symmap.get(tok, str(tok))
                 ltp = float(t.get("last_price") or t.get("ltp") or 0.0)
@@ -60,12 +82,16 @@ async def drain_to_kafka(q:queue.Queue, symmap:dict):
                     ns = int(et.replace(tzinfo=timezone.utc).timestamp() * 1_000_000_000)
                 else:
                     ns = int(time.time()*1_000_000_000)
+                event_latency = max(0.0, (time.time_ns() - ns) / 1_000_000_000.0)
+                TICK_LATENCY.observe(event_latency)
+                TICKS_RECEIVED.labels(sym).inc()
                 msg={"symbol":sym,"event_ts":ns,"ltp":ltp,"vol":vol}
                 await prod.send_and_wait(TOPIC, ujson.dumps(msg).encode(), key=sym.encode())
     finally:
         await prod.stop()
 
 def main():
+    start_http_server(METRICS_PORT)
     tokens, symmap = load_tokens()
     api_key, access = load_access_token()
     # quick REST check
@@ -74,16 +100,24 @@ def main():
     except kz_ex.TokenException: raise SystemExit("Token invalid/expired. Re-auth.")
 
     q=queue.Queue(maxsize=10000)
+    QUEUE_DEPTH.set(0)
     kt=KiteTicker(api_key, access)
     def on_ticks(ws, ticks):
+        WS_EVENTS.labels("ticks").inc()
         for t in ticks:
             try: q.put_nowait(t)
-            except queue.Full: pass
+            except queue.Full:
+                TICKS_DROPPED.inc()
+            finally:
+                QUEUE_DEPTH.set(q.qsize())
     def on_connect(ws, response):
         ws.subscribe(tokens); ws.set_mode(ws.MODE_LTP, tokens)
         print(f"[ws] connected; subscribed {len(tokens)}")
+        WS_EVENTS.labels("connect").inc()
     def on_error(ws, code, reason): print(f"[ws] error {code}: {reason}")
-    def on_close(ws, code, reason): print(f"[ws] closed {code}: {reason}")
+    def on_close(ws, code, reason):
+        print(f"[ws] closed {code}: {reason}")
+        WS_EVENTS.labels("close").inc()
 
     kt.on_ticks = on_ticks; kt.on_connect = on_connect
     kt.on_error = on_error; kt.on_close = on_close

@@ -1,0 +1,27 @@
+# Default stack orchestrated by orchestrator/process_supervisor.py.
+# Adjust the services list to match the processes you want to keep running.
+
+log_dir: runs/logs/process_supervisor
+shutdown_grace_seconds: 5
+tail_lines: 40
+stop_on_any_exit: true
+default_cwd: "{{root}}"
+env:
+  LIVE_TRADING: "0"
+  AUTO_SWITCH_TO_LIVE: "0"
+
+services:
+  - name: zerodha-ws
+    cmd: "{{python}} ingestion/zerodha_ws.py"
+
+  - name: bar-builder-1s
+    cmd: "{{python}} compute/bar_builder_1s.py"
+
+  - name: bar-aggregator
+    cmd: "{{python}} compute/bar_aggregator_1m_to_multi.py"
+
+  - name: pair-watch
+    cmd: "{{python}} compute/pair_watch_producer.py"
+
+  - name: pairs-executor
+    cmd: "{{python}} execution/pairs_executor.py"

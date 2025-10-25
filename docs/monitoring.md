@@ -17,9 +17,31 @@
 | `monitoring/recon_autoheal.py` | Attempts to backfill/replay bars that fail reconciliation. | Kafka replays, Postgres fixes |
 | `monitoring/process_supervisor.py` | Sample supervisor script that watches process heartbeats. | CLI / Prometheus |
 
+### Pairs Trading Automation & Observability
+
+The pairs paper stack now exposes consistent Prometheus metrics for every hop in the workflow and is driven by two scheduled GitHub Actions:
+
+| Workflow | When | Purpose |
+| --- | --- | --- |
+| `.github/workflows/eod.yml` | 16:40 IST (Mon–Fri) | Runs the end-of-day pipeline (`orchestrator/eod_pipeline.py`) for reconciliation, auto-heal and next-day selection generation. |
+| `.github/workflows/pre-market.yml` | 08:30 IST (Mon–Fri) | Validates and promotes the latest selections to `configs/pairs_next_day.yaml` via `orchestrator/pre_market_setup.py`, ensuring the live stack has an up‑to‑date whitelist. |
+
+| Service | Launcher | Default metrics port |
+| --- | --- | --- |
+| Zerodha websocket ingestor | `ingestion/zerodha_ws.py` | 8111 |
+| 1s bar builder | `compute/bar_builder_1s.py` | 8112 |
+| 1m→multi aggregator | `compute/bar_aggregator_1m_to_multi.py` | 8113 |
+| Pair watch producer | `compute/pair_watch_producer.py` | 8114 |
+| Pairs executor | `execution/pairs_executor.py` | 8115 |
+| Risk manager v2 | `risk/manager_v2.py` | 8116 |
+| Paper matcher | `execution/paper_gateway_matcher.py` | 8117 |
+
+Each process exposes throughput counters plus latency histograms (tick ingestion, bar publish, pair decisions, risk approvals, matcher fills) and gauges for backlog/ready-state. The orchestrator (`orchestrator/pairs_paper_entry.py`) injects the port assignments automatically.
+
 ## Infrastructure
 - Prometheus configuration lives in `infra/prometheus/prometheus.yml`.
 - Grafana dashboards and provisioning under `infra/grafana/`.
+- `infra/grafana/dashboards/pairs_trading_observability.json` contains the end-to-end latency dashboard wired to the metrics above.
 - Kafka exporter (`kafka-exporter`) and Kafka UI are launched via `make up`.
 - Alerts: integrate Grafana alerting with Slack/Teams or pushgateway as required.
 

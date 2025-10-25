@@ -4,11 +4,11 @@ holdback_fraction: 0.20            # always keep 20% un-deployed
 
 buckets:
   LOW:
-    split: 0.50
+    split: 1.00
     max_per_trade: 25000
   MED:
-    split: 0.30
+    split: 0.00
     max_per_trade: 20000
   HIGH:
-    split: 0.20
+    split: 0.00
     max_per_trade: 10000

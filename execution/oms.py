@@ -12,7 +12,7 @@ Intended usage:
   await oms.transition(coid, "FILLED", note="paper fill", meta={"fill_qty": 100})
 """
 from __future__ import annotations
-import hashlib, json, asyncpg
+import hashlib, json, asyncpg, time
 from typing import Optional, Dict, Any
 
 VALID = {
@@ -44,6 +44,26 @@ class OMS:
         Insert NEW if absent; if present, do nothing (idempotent).
         """
         order = dict(order)
+        if "ts" not in order or order["ts"] is None:
+            order["ts"] = time.time()
+        try:
+            order["ts"] = int(order["ts"])
+        except Exception:
+            order["ts"] = int(time.time())
+        order["client_order_id"] = str(order.get("client_order_id") or "").strip()
+        if not order["client_order_id"]:
+            raise ValueError("order missing client_order_id")
+        order["symbol"] = str(order.get("symbol") or "").strip()
+        order["side"] = str(order.get("side") or "").upper()
+        order["order_type"] = str(order.get("order_type") or "MKT").upper()
+        order["strategy"] = str(order.get("strategy") or "UNKNOWN")
+        order["risk_bucket"] = str(order.get("risk_bucket") or "MED").upper()
+        order["qty"] = int(order.get("qty") or 0)
+        if isinstance(order.get("extra"), dict):
+            extra = order["extra"]
+        else:
+            extra = {}
+        order["extra"] = extra
         order.setdefault("status", "NEW")
         order["audit_hash"] = _audit_hash(order)
         sql = """

@@ -1,5 +1,5 @@
 
-.PHONY: up down ps logs doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi
+.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi
 
 up: 
 	cd infra && docker compose up -d && docker compose ps
@@ -11,6 +11,9 @@ ps:
 	cd infra && docker compose ps
 logs: 
 	cd infra && docker compose logs -f
+topics:
+	docker cp infra/scripts/create-topics.sh kafka:/usr/local/bin/create-topics
+	docker exec -t kafka bash -lc 'BROKER=kafka:29092 RF=1 DRY_RUN=0 /usr/local/bin/create-topics'
 doctor: 
 	python3 monitoring/doctor.py
 

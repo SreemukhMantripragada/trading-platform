@@ -1,4 +1,45 @@
 # strategy/runner_modular.py
+"""
+runner_modular.py
+
+This module implements a modular trading strategy runner that consumes market data from Kafka, applies a configurable set of indicators and strategies, combines their signals using an ensemble engine, and emits orders to Kafka and persists them to PostgreSQL.
+
+Main Components:
+- Loads indicator, strategy, and ensemble configurations from YAML files.
+- Maintains rolling buffers of market data for each symbol.
+- Applies indicators to generate features for each symbol.
+- Runs multiple strategies on each bar and collects their signals.
+- Combines strategy signals using an ensemble engine to produce a final trading signal.
+- Emits orders based on ensemble signals, persists them to PostgreSQL, and tracks metrics with Prometheus.
+- Supports a killswitch for safe shutdown.
+
+Environment Variables:
+- KAFKA_BROKER: Kafka broker address.
+- IN_TOPIC: Kafka topic for incoming market data.
+- OUT_TOPIC: Kafka topic for outgoing orders.
+- KAFKA_GROUP: Kafka consumer group ID.
+- TF: Timeframe identifier.
+- POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD: PostgreSQL connection parameters.
+- STRAT_CONF: Path to strategy configuration YAML.
+- ENS_CONF: Path to ensemble configuration YAML.
+- IND_CONF: Path to indicator configuration YAML.
+- METRICS_PORT: Port for Prometheus metrics server.
+
+Key Functions:
+- load_indicators(conf, tf): Loads indicator instances for the given timeframe.
+- load_strategies(conf, tf): Loads strategy instances for the given timeframe.
+- load_ensemble(conf): Loads the ensemble engine with specified parameters.
+- persist_order(pool, order): Persists an order to PostgreSQL.
+- mk_coid(stname, sym, ts): Generates a unique client order ID.
+- main(): Main async event loop for consuming data, running strategies, emitting orders, and managing resources.
+
+Dependencies:
+- asyncpg, aiokafka, ujson, yaml, prometheus_client
+- Custom modules: libs.signal, strategy.strategies.sma_cross, strategy.rsi_reversion, indicators.sma, indicators.rsi, indicators.atr, libs.killswitch, strategy.ensemble_engine
+
+Usage:
+Run as a standalone script to start the modular strategy runner for a specific timeframe.
+"""
 import os, asyncio, ujson as json
 from collections import defaultdict, deque
 import asyncpg
