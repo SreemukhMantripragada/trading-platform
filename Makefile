@@ -1,5 +1,16 @@
 
-.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi
+.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi pairs-pipeline
+.DEFAULT_GOAL := help
+
+POSTGRES_HOST ?= localhost
+POSTGRES_PORT ?= 5432
+POSTGRES_DB   ?= trading
+POSTGRES_USER ?= trader
+POSTGRES_PASSWORD ?= trader
+
+PAIRS_REMOTE_HOST ?= ubuntu@65.2.181.37
+PAIRS_REMOTE_PATH ?= ~/trading-platform/configs/pairs_next_day.yaml
+PAIRS_REMOTE_KEY  ?= $(shell pwd)/trading-ec2-key.pem
 
 up: 
 	cd infra && docker compose up -d && docker compose ps
@@ -54,11 +65,7 @@ agg-multi:
 	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
 	python compute/bar_aggregator_from_1m.py
 
-.PHONY: hist-merge
-hist-merge:
-	. .venv/bin/activate && D1=${D1} D2=${D2} python ingestion/zerodha_hist_merge.py
-
-.PHONY: ws hist-merge recon-v2 pairs-make pairs-monitor bt-ui
+.PHONY: ws recon-v2 pairs-make pairs-monitor bt-ui
 ws:
 	. .venv/bin/activate && python ingestion/zerodha_ws_v2.py
 recon-v2:
@@ -69,6 +76,12 @@ pairs-monitor:
 	. .venv/bin/activate && python strategy/pairs_monitor.py
 bt-ui:
 	. .venv/bin/activate && streamlit run ui/backtest_app.py --server.address 0.0.0.0 --server.port 8501
+
+pairs-pipeline:
+	REMOTE="${PAIRS_REMOTE_HOST}" REMOTE_PATH="${PAIRS_REMOTE_PATH}" SSH_KEY_PATH="${PAIRS_REMOTE_KEY}" \
+	POSTGRES_HOST=${POSTGRES_HOST} POSTGRES_PORT=${POSTGRES_PORT} \
+	POSTGRES_DB=${POSTGRES_DB} POSTGRES_USER=${POSTGRES_USER} POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
+	bash tools/pairs_pipeline.sh
 
 # --- Gateway/OMS exporter ---
 exporter-gw:
@@ -104,8 +117,6 @@ cancel-listener:
 # Shadow toggle (start/stop processes your way; here foreground helpers)
 shadow-on:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} IN_TOPIC=orders OUT_TOPIC=orders.paper python execution/shadow_mirror.py
-# ---- APPEND THESE TARGETS TO YOUR EXISTING Makefile ----
-
 pairs-exp:
 	. .venv/bin/activate && METRICS_PORT=8019 python monitoring/pairs_exporter.py
 
@@ -134,7 +145,6 @@ grafana-import-pairs:
 		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
 		--data-binary @infra/grafana/dashboards/pairs.json | jq .
 
-# ---- APPEND TO Makefile ----
 pairs-exec:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 	IN_TOPIC=pairs.signals OUT_TOPIC=orders METRICS_PORT=8020 \
@@ -152,7 +162,6 @@ grafana-import-pairs-pnl:
 		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
 		--data-binary @infra/grafana/dashboards/pairs_pnl.json | jq .
 
-# ---- append to Makefile ----
 oms-health:
 	. .venv/bin/activate && METRICS_PORT=8016 python execution/oms_health_exporter.py
 
@@ -179,11 +188,10 @@ zerodha-live:
 	. .venv/bin/activate && DRY_RUN=0 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 		IN_TOPIC=orders FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
 
-# --- append to Makefile ---
 budget-guard:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 	IN_TOPIC=orders OUT_TOPIC=orders.allowed METRICS_PORT=8023 \
-	python risk/order_budget_guard.py
+	python -m risk.order_budget_guard
 
 zerodha-canary-allowed:
 	. .venv/bin/activate && DRY_RUN=1 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
@@ -192,8 +200,6 @@ zerodha-canary-allowed:
 zerodha-live-allowed:
 	. .venv/bin/activate && DRY_RUN=0 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 	IN_TOPIC=orders.allowed FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
-
-# --- append to Makefile ---
 
 oms-ddl:
 	docker exec -i postgres psql -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trading} -f infra/postgres/init/10_oms.sql
@@ -210,8 +216,6 @@ exit-engine:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 	OUT_TOPIC=orders EXIT_SCAN_SEC=5 python execution/exit_engine.py
 
-# --- append to Makefile ---
-
 poller-dry:
 	. .venv/bin/activate && DRY_RUN=1 POLL_SEC=4 \
 	KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} FILL_TOPIC=fills \
@@ -224,8 +228,6 @@ poller-live:
 
 bt-grid:
 	. .venv/bin/activate && python backtest/grid_search.py
-
-# --- append to Makefile ---
 
 pairs-ddl:
 	docker exec -i postgres psql -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trading} \

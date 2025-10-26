@@ -10,6 +10,7 @@ IN_TOPIC=os.getenv("IN_TOPIC","orders")
 OUT_TOPIC=os.getenv("OUT_TOPIC","orders.allowed")
 GROUP_ID=os.getenv("KAFKA_GROUP","order_budget_guard")
 PORT=int(os.getenv("METRICS_PORT","8023"))
+LEVERAGE_MULT = float(os.getenv("PAIRS_LEVERAGE", os.getenv("PAIRS_BT_LEVERAGE", "5.0")))
 
 ALLOC_USED = Gauge("budget_used_inr", "Committed notional per bucket", ["bucket"])
 ORDERS_ALLOWED = Counter("orders_allowed_total", "Orders allowed", ["bucket"])
@@ -34,23 +35,34 @@ async def main():
             try:
                 bucket=(o.get("risk_bucket") or "MED").upper()
                 bspec = budgets.get(bucket, {"budget":0.0,"max_per_trade":0.0})
+                if bucket not in used:
+                    used[bucket] = 0.0
                 cap   = float(bspec["budget"])
                 per   = float(bspec["max_per_trade"])
 
                 px_ref = float(((o.get("extra") or {}).get("px_ref")) or 0.0)
                 notional = px_ref * int(o["qty"])
+                extra = (o.get("extra") or {})
+                lev_raw = extra.get("leverage")
+                try:
+                    lev = float(lev_raw if lev_raw is not None else LEVERAGE_MULT)
+                except (TypeError, ValueError):
+                    lev = LEVERAGE_MULT
+                if lev <= 0:
+                    lev = 1.0
+                cash_notional = notional / lev if lev > 0 else notional
                 reason=None
-                if notional <= 0:
+                if cash_notional <= 0:
                     reason="bad_notional"
-                elif notional > per + 1e-6:
+                elif cash_notional > per + 1e-6:
                     reason="exceeds_max_per_trade"
-                elif used[bucket] + notional > cap + 1e-6:
+                elif used.get(bucket,0.0) + cash_notional > cap + 1e-6:
                     reason="exceeds_bucket_budget"
 
                 if reason:
                     ORDERS_REJECT.labels(bucket, reason).inc()
                 else:
-                    used[bucket]+=notional
+                    used[bucket]=used.get(bucket,0.0)+cash_notional
                     ALLOC_USED.labels(bucket).set(used[bucket])
                     ORDERS_ALLOWED.labels(bucket).inc()
                     await prod.send_and_wait(OUT_TOPIC, json.dumps(o).encode(), key=(o.get("symbol") or "").encode())

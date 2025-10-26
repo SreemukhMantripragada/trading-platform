@@ -7,223 +7,179 @@ pairs:
   leg_y: ETERNAL
   tf: 15m
   lookback: 120
-- leg_x: ADANIENSOL
-  leg_y: PNB
-  tf: 15m
-  lookback: 120
 - leg_x: CGPOWER
   leg_y: ETERNAL
-  tf: 15m
-  lookback: 120
-- leg_x: INDHOTEL
-  leg_y: ULTRACEMCO
-  tf: 15m
-  lookback: 120
-- leg_x: CHOLAFIN
-  leg_y: PNB
-  tf: 15m
-  lookback: 120
-- leg_x: BAJAJ-AUTO
-  leg_y: SWIGGY
   tf: 15m
   lookback: 120
 - leg_x: APOLLOHOSP
   leg_y: GRASIM
   tf: 15m
   lookback: 120
-- leg_x: AXISBANK
-  leg_y: PNB
+- leg_x: BAJAJ-AUTO
+  leg_y: SWIGGY
   tf: 15m
   lookback: 120
 - leg_x: ICICIBANK
   leg_y: LODHA
   tf: 15m
   lookback: 120
-- leg_x: BAJAJHLDNG
-  leg_y: LODHA
+- leg_x: ADANIENSOL
+  leg_y: PNB
+  tf: 15m
+  lookback: 120
+- leg_x: AXISBANK
+  leg_y: PNB
   tf: 15m
   lookback: 120
 - leg_x: INFY
   leg_y: NAUKRI
   tf: 15m
   lookback: 120
-- leg_x: SUNPHARMA
-  leg_y: TATAPOWER
-  tf: 15m
-  lookback: 120
 - leg_x: SBIN
   leg_y: TATACONSUM
   tf: 15m
   lookback: 120
-- leg_x: NAUKRI
-  leg_y: WIPRO
-  tf: 15m
-  lookback: 120
-- leg_x: BANKBARODA
-  leg_y: GODREJCP
-  tf: 15m
-  lookback: 120
-- leg_x: INDUSINDBK
-  leg_y: SHREECEM
-  tf: 15m
-  lookback: 120
-- leg_x: POWERGRID
-  leg_y: TATAPOWER
-  tf: 15m
-  lookback: 120
-- leg_x: LODHA
-  leg_y: SHREECEM
-  tf: 15m
-  lookback: 120
-- leg_x: BAJAJHFL
-  leg_y: NAUKRI
-  tf: 15m
-  lookback: 120
-- leg_x: ICICIPRULI
+- leg_x: BAJAJHLDNG
   leg_y: LODHA
   tf: 15m
   lookback: 120
-- leg_x: LICI
-  leg_y: PFC
-  tf: 15m
-  lookback: 120
-- leg_x: INDHOTEL
-  leg_y: TECHM
-  tf: 15m
-  lookback: 120
-- leg_x: ETERNAL
-  leg_y: MARUTI
-  tf: 15m
-  lookback: 120
-- leg_x: BAJFINANCE
-  leg_y: VEDL
-  tf: 15m
-  lookback: 120
-- leg_x: HINDUNILVR
-  leg_y: PFC
-  tf: 15m
-  lookback: 120
-- leg_x: EICHERMOT
-  leg_y: ICICIPRULI
-  tf: 15m
-  lookback: 120
-- leg_x: ADANIENSOL
-  leg_y: AXISBANK
-  tf: 15m
-  lookback: 120
-- leg_x: ABB
-  leg_y: POWERGRID
-  tf: 15m
-  lookback: 120
-- leg_x: M&M
-  leg_y: SWIGGY
-  tf: 15m
-  lookback: 120
-- leg_x: BAJAJHFL
-  leg_y: PIDILITIND
-  tf: 15m
-  lookback: 120
-- leg_x: IRFC
-  leg_y: POWERGRID
+- leg_x: SUNPHARMA
+  leg_y: TATAPOWER
   tf: 15m
   lookback: 120
 - leg_x: ADANIENSOL
   leg_y: CANBK
   tf: 15m
   lookback: 120
+- leg_x: CHOLAFIN
+  leg_y: PNB
+  tf: 15m
+  lookback: 120
+- leg_x: NAUKRI
+  leg_y: WIPRO
+  tf: 15m
+  lookback: 120
+- leg_x: INDHOTEL
+  leg_y: ULTRACEMCO
+  tf: 15m
+  lookback: 120
+- leg_x: BANKBARODA
+  leg_y: GODREJCP
+  tf: 15m
+  lookback: 120
+- leg_x: ICICIPRULI
+  leg_y: LODHA
+  tf: 15m
+  lookback: 120
+- leg_x: INDHOTEL
+  leg_y: TECHM
+  tf: 15m
+  lookback: 120
+- leg_x: EICHERMOT
+  leg_y: ICICIPRULI
+  tf: 15m
+  lookback: 120
+- leg_x: LICI
+  leg_y: PFC
+  tf: 15m
+  lookback: 120
+- leg_x: LODHA
+  leg_y: SHREECEM
+  tf: 15m
+  lookback: 120
+- leg_x: ETERNAL
+  leg_y: MARUTI
+  tf: 15m
+  lookback: 120
+- leg_x: BAJFINANCE
+  leg_y: VEDL
+  tf: 15m
+  lookback: 120
+- leg_x: POWERGRID
+  leg_y: TATAPOWER
+  tf: 15m
+  lookback: 120
+- leg_x: M&M
+  leg_y: SWIGGY
+  tf: 15m
+  lookback: 120
 - leg_x: HINDALCO
   leg_y: TATACONSUM
+  tf: 15m
+  lookback: 120
+- leg_x: BAJAJHFL
+  leg_y: PIDILITIND
   tf: 15m
   lookback: 120
 - leg_x: GAIL
   leg_y: INFY
   tf: 15m
   lookback: 120
-- leg_x: BAJAJHLDNG
-  leg_y: ICICIPRULI
+- leg_x: INDUSINDBK
+  leg_y: SHREECEM
   tf: 15m
   lookback: 120
-- leg_x: ADANIENSOL
-  leg_y: CHOLAFIN
+- leg_x: TATACONSUM
+  leg_y: VEDL
+  tf: 15m
+  lookback: 120
+- leg_x: ABB
+  leg_y: POWERGRID
+  tf: 15m
+  lookback: 120
+- leg_x: HINDALCO
+  leg_y: SHREECEM
+  tf: 15m
+  lookback: 120
+- leg_x: BAJAJHLDNG
+  leg_y: ICICIPRULI
   tf: 15m
   lookback: 120
 - leg_x: DRREDDY
   leg_y: ZYDUSLIFE
   tf: 15m
   lookback: 120
-- leg_x: BEL
-  leg_y: JSWENERGY
-  tf: 15m
-  lookback: 120
-- leg_x: HINDALCO
-  leg_y: SHREECEM
-  tf: 15m
-  lookback: 120
 - leg_x: CGPOWER
   leg_y: SWIGGY
-  tf: 15m
-  lookback: 120
-- leg_x: TATACONSUM
-  leg_y: VEDL
-  tf: 15m
-  lookback: 120
-- leg_x: AMBUJACEM
-  leg_y: BAJAJHFL
-  tf: 15m
-  lookback: 120
-- leg_x: MARUTI
-  leg_y: SHREECEM
-  tf: 15m
-  lookback: 120
-- leg_x: CANBK
-  leg_y: JSWSTEEL
-  tf: 15m
-  lookback: 120
-- leg_x: BAJFINANCE
-  leg_y: TATASTEEL
-  tf: 15m
-  lookback: 120
-- leg_x: EICHERMOT
-  leg_y: SHREECEM
   tf: 15m
   lookback: 120
 - leg_x: BAJAJHFL
   leg_y: LODHA
   tf: 15m
   lookback: 120
-- leg_x: MARUTI
-  leg_y: SWIGGY
-  tf: 15m
-  lookback: 120
 - leg_x: AMBUJACEM
-  leg_y: RECLTD
-  tf: 15m
-  lookback: 120
-- leg_x: ABB
-  leg_y: GAIL
+  leg_y: BAJAJHFL
   tf: 15m
   lookback: 120
 - leg_x: GAIL
   leg_y: TATAPOWER
   tf: 15m
   lookback: 120
+- leg_x: AXISBANK
+  leg_y: TATACONSUM
+  tf: 15m
+  lookback: 120
+- leg_x: CANBK
+  leg_y: JSWSTEEL
+  tf: 15m
+  lookback: 120
+- leg_x: IOC
+  leg_y: PNB
+  tf: 15m
+  lookback: 120
 - leg_x: MARUTI
-  leg_y: ETERNAL
-  tf: 3m
+  leg_y: SWIGGY
+  tf: 15m
   lookback: 120
-- leg_x: TATASTEEL
-  leg_y: ETERNAL
-  tf: 3m
+- leg_x: BAJFINANCE
+  leg_y: TATASTEEL
+  tf: 15m
   lookback: 120
-- leg_x: VEDL
-  leg_y: ETERNAL
-  tf: 3m
+- leg_x: ADANIENSOL
+  leg_y: IOC
+  tf: 15m
   lookback: 120
 - leg_x: EICHERMOT
-  leg_y: ETERNAL
-  tf: 3m
-  lookback: 120
-- leg_x: JSWSTEEL
   leg_y: ETERNAL
   tf: 3m
   lookback: 120
@@ -231,172 +187,192 @@ pairs:
   leg_y: ETERNAL
   tf: 3m
   lookback: 120
-- leg_x: TVSMOTOR
-  leg_y: ETERNAL
-  tf: 3m
-  lookback: 120
-- leg_x: SBIN
-  leg_y: ETERNAL
-  tf: 3m
-  lookback: 120
 - leg_x: CGPOWER
   leg_y: ETERNAL
   tf: 3m
   lookback: 120
-- leg_x: ULTRACEMCO
-  leg_y: INDHOTEL
-  tf: 3m
-  lookback: 120
-- leg_x: PNB
-  leg_y: CHOLAFIN
-  tf: 3m
-  lookback: 120
-- leg_x: M&M
-  leg_y: ETERNAL
+- leg_x: INDHOTEL
+  leg_y: ULTRACEMCO
   tf: 3m
   lookback: 120
 - leg_x: APOLLOHOSP
   leg_y: GRASIM
   tf: 3m
   lookback: 120
+- leg_x: ICICIBANK
+  leg_y: LODHA
+  tf: 3m
+  lookback: 120
+- leg_x: ADANIENSOL
+  leg_y: PNB
+  tf: 3m
+  lookback: 120
+- leg_x: BAJAJ-AUTO
+  leg_y: SWIGGY
+  tf: 3m
+  lookback: 120
 - leg_x: SUNPHARMA
   leg_y: TATAPOWER
-  tf: 3m
-  lookback: 120
-- leg_x: PNB
-  leg_y: ADANIENSOL
-  tf: 3m
-  lookback: 120
-- leg_x: NAUKRI
-  leg_y: BAJAJHFL
   tf: 3m
   lookback: 120
 - leg_x: INFY
   leg_y: NAUKRI
   tf: 3m
   lookback: 120
-- leg_x: BANKBARODA
-  leg_y: GODREJCP
+- leg_x: IRFC
+  leg_y: POWERGRID
+  tf: 3m
+  lookback: 120
+- leg_x: BAJAJHLDNG
+  leg_y: LODHA
+  tf: 3m
+  lookback: 120
+- leg_x: CHOLAFIN
+  leg_y: PNB
   tf: 3m
   lookback: 120
 - leg_x: NAUKRI
   leg_y: WIPRO
   tf: 3m
   lookback: 120
-- leg_x: POWERGRID
-  leg_y: IRFC
+- leg_x: BANKBARODA
+  leg_y: GODREJCP
   tf: 3m
   lookback: 120
-- leg_x: ADANIENSOL
-  leg_y: CHOLAFIN
-  tf: 3m
-  lookback: 120
-- leg_x: LODHA
-  leg_y: SHREECEM
-  tf: 3m
-  lookback: 120
-- leg_x: POWERGRID
-  leg_y: TATAPOWER
-  tf: 3m
-  lookback: 120
-- leg_x: LICI
-  leg_y: PFC
+- leg_x: ICICIPRULI
+  leg_y: LODHA
   tf: 3m
   lookback: 120
 - leg_x: SBIN
   leg_y: TATACONSUM
   tf: 3m
   lookback: 120
-- leg_x: SWIGGY
-  leg_y: ETERNAL
-  tf: 3m
-  lookback: 120
-- leg_x: LODHA
-  leg_y: ICICIPRULI
-  tf: 3m
-  lookback: 120
-- leg_x: SHREECEM
-  leg_y: BAJAJHFL
-  tf: 3m
-  lookback: 120
-- leg_x: ADANIENSOL
-  leg_y: AXISBANK
-  tf: 3m
-  lookback: 120
-- leg_x: M&M
-  leg_y: COALINDIA
-  tf: 3m
-  lookback: 120
-- leg_x: RECLTD
-  leg_y: AMBUJACEM
-  tf: 3m
-  lookback: 120
-- leg_x: VEDL
-  leg_y: BAJFINANCE
-  tf: 3m
-  lookback: 120
-- leg_x: EICHERMOT
-  leg_y: ICICIPRULI
-  tf: 3m
-  lookback: 120
-- leg_x: TATAPOWER
-  leg_y: GAIL
-  tf: 3m
-  lookback: 120
-- leg_x: PNB
-  leg_y: IOC
-  tf: 3m
-  lookback: 120
-- leg_x: M&M
-  leg_y: SWIGGY
+- leg_x: ETERNAL
+  leg_y: MARUTI
   tf: 3m
   lookback: 120
 - leg_x: AXISBANK
   leg_y: CHOLAFIN
   tf: 3m
   lookback: 120
-- leg_x: INDUSINDBK
-  leg_y: ETERNAL
+- leg_x: AXISBANK
+  leg_y: PNB
   tf: 3m
   lookback: 120
-- leg_x: PNB
+- leg_x: POWERGRID
+  leg_y: TATAPOWER
+  tf: 3m
+  lookback: 120
+- leg_x: INDHOTEL
+  leg_y: TECHM
+  tf: 3m
+  lookback: 120
+- leg_x: GAIL
+  leg_y: TATAPOWER
+  tf: 3m
+  lookback: 120
+- leg_x: ABB
+  leg_y: POWERGRID
+  tf: 3m
+  lookback: 120
+- leg_x: LICI
+  leg_y: PFC
+  tf: 3m
+  lookback: 120
+- leg_x: ADANIENSOL
   leg_y: AXISBANK
+  tf: 3m
+  lookback: 120
+- leg_x: LODHA
+  leg_y: SHREECEM
+  tf: 3m
+  lookback: 120
+- leg_x: EICHERMOT
+  leg_y: ICICIPRULI
+  tf: 3m
+  lookback: 120
+- leg_x: BAJFINANCE
+  leg_y: VEDL
+  tf: 3m
+  lookback: 120
+- leg_x: ADANIENSOL
+  leg_y: IOC
+  tf: 3m
+  lookback: 120
+- leg_x: BAJFINANCE
+  leg_y: TATACONSUM
+  tf: 3m
+  lookback: 120
+- leg_x: HINDALCO
+  leg_y: SHREECEM
+  tf: 3m
+  lookback: 120
+- leg_x: IOC
+  leg_y: PNB
+  tf: 3m
+  lookback: 120
+- leg_x: M&M
+  leg_y: SWIGGY
+  tf: 3m
+  lookback: 120
+- leg_x: HINDALCO
+  leg_y: TATACONSUM
+  tf: 3m
+  lookback: 120
+- leg_x: BAJAJHFL
+  leg_y: PIDILITIND
+  tf: 3m
+  lookback: 120
+- leg_x: AXISBANK
+  leg_y: TATACONSUM
   tf: 3m
   lookback: 120
 - leg_x: MARUTI
   leg_y: SWIGGY
   tf: 3m
   lookback: 120
-- leg_x: RECLTD
-  leg_y: IRFC
+- leg_x: CANBK
+  leg_y: JSWSTEEL
   tf: 3m
   lookback: 120
-- leg_x: TVSMOTOR
-  leg_y: GRASIM
+- leg_x: ETERNAL
+  leg_y: JSWSTEEL
+  tf: 3m
+  lookback: 120
+- leg_x: GAIL
+  leg_y: INFY
+  tf: 3m
+  lookback: 120
+- leg_x: AMBUJACEM
+  leg_y: RECLTD
   tf: 3m
   lookback: 120
 - leg_x: TATACONSUM
   leg_y: VEDL
   tf: 3m
   lookback: 120
-- leg_x: INDUSINDBK
-  leg_y: SHREECEM
+- leg_x: BOSCHLTD
+  leg_y: DABUR
+  tf: 3m
+  lookback: 120
+- leg_x: IRFC
+  leg_y: RECLTD
   tf: 3m
   lookback: 120
 - leg_x: AMBUJACEM
   leg_y: BAJAJHFL
   tf: 3m
   lookback: 120
-- leg_x: TVSMOTOR
-  leg_y: AMBUJACEM
+- leg_x: BAJFINANCE
+  leg_y: TATASTEEL
   tf: 3m
   lookback: 120
-- leg_x: BOSCHLTD
-  leg_y: DABUR
+- leg_x: ETERNAL
+  leg_y: HEROMOTOCO
   tf: 3m
   lookback: 120
-- leg_x: JSWSTEEL
-  leg_y: TATACONSUM
+- leg_x: BAJAJHLDNG
+  leg_y: ICICIPRULI
   tf: 3m
   lookback: 120
 - leg_x: EICHERMOT
@@ -405,24 +381,20 @@ pairs:
   lookback: 120
 - leg_x: BAJAJ-AUTO
   leg_y: ETERNAL
+  tf: 5m
+  lookback: 120
+- leg_x: CGPOWER
+  leg_y: ETERNAL
+  tf: 5m
+  lookback: 120
+- leg_x: BAJAJ-AUTO
+  leg_y: SWIGGY
   tf: 5m
   lookback: 120
 - leg_x: INDHOTEL
   leg_y: ULTRACEMCO
   tf: 5m
   lookback: 120
-- leg_x: CGPOWER
-  leg_y: ETERNAL
-  tf: 5m
-  lookback: 120
-- leg_x: BAJAJ-AUTO
-  leg_y: SWIGGY
-  tf: 5m
-  lookback: 120
-- leg_x: CHOLAFIN
-  leg_y: PNB
-  tf: 5m
-  lookback: 120
 - leg_x: APOLLOHOSP
   leg_y: GRASIM
   tf: 5m
@@ -431,103 +403,95 @@ pairs:
   leg_y: LODHA
   tf: 5m
   lookback: 120
-- leg_x: NAUKRI
-  leg_y: WIPRO
-  tf: 5m
-  lookback: 120
 - leg_x: ADANIENSOL
   leg_y: PNB
   tf: 5m
   lookback: 120
-- leg_x: BAJAJHLDNG
-  leg_y: LODHA
-  tf: 5m
-  lookback: 120
-- leg_x: IRFC
-  leg_y: POWERGRID
-  tf: 5m
-  lookback: 120
-- leg_x: SUNPHARMA
-  leg_y: TATAPOWER
+- leg_x: NAUKRI
+  leg_y: WIPRO
   tf: 5m
   lookback: 120
 - leg_x: INFY
   leg_y: NAUKRI
   tf: 5m
   lookback: 120
-- leg_x: M&M
-  leg_y: SWIGGY
+- leg_x: SUNPHARMA
+  leg_y: TATAPOWER
   tf: 5m
   lookback: 120
 - leg_x: BANKBARODA
   leg_y: GODREJCP
   tf: 5m
   lookback: 120
-- leg_x: AXISBANK
-  leg_y: PNB
+- leg_x: IRFC
+  leg_y: POWERGRID
+  tf: 5m
+  lookback: 120
+- leg_x: M&M
+  leg_y: SWIGGY
   tf: 5m
   lookback: 120
 - leg_x: POWERGRID
   leg_y: TATAPOWER
   tf: 5m
   lookback: 120
-- leg_x: ETERNAL
-  leg_y: MARUTI
+- leg_x: CHOLAFIN
+  leg_y: PNB
   tf: 5m
   lookback: 120
 - leg_x: EICHERMOT
   leg_y: ICICIPRULI
   tf: 5m
   lookback: 120
-- leg_x: BAJAJHFL
-  leg_y: NAUKRI
+- leg_x: ETERNAL
+  leg_y: MARUTI
+  tf: 5m
+  lookback: 120
+- leg_x: AXISBANK
+  leg_y: PNB
   tf: 5m
   lookback: 120
 - leg_x: ICICIPRULI
   leg_y: LODHA
   tf: 5m
   lookback: 120
-- leg_x: LODHA
-  leg_y: SHREECEM
-  tf: 5m
-  lookback: 120
 - leg_x: INDHOTEL
   leg_y: TECHM
-  tf: 5m
-  lookback: 120
-- leg_x: LICI
-  leg_y: PFC
-  tf: 5m
-  lookback: 120
-- leg_x: BAJAJHFL
-  leg_y: PIDILITIND
-  tf: 5m
-  lookback: 120
-- leg_x: ABB
-  leg_y: POWERGRID
-  tf: 5m
-  lookback: 120
-- leg_x: HINDALCO
-  leg_y: TATACONSUM
   tf: 5m
   lookback: 120
 - leg_x: HEROMOTOCO
   leg_y: INDUSINDBK
   tf: 5m
   lookback: 120
-- leg_x: EICHERMOT
-  leg_y: SHREECEM
+- leg_x: ABB
+  leg_y: POWERGRID
+  tf: 5m
+  lookback: 120
+- leg_x: SBIN
+  leg_y: TATACONSUM
+  tf: 5m
+  lookback: 120
+- leg_x: BAJAJHFL
+  leg_y: PIDILITIND
+  tf: 5m
+  lookback: 120
+- leg_x: TATACONSUM
+  leg_y: VEDL
   tf: 5m
   lookback: 120
 - leg_x: EICHERMOT
   leg_y: INDUSINDBK
   tf: 5m
   lookback: 120
-- leg_x: MARUTI
+- leg_x: LICI
+  leg_y: PFC
+  tf: 5m
+  lookback: 120
+- leg_x: LODHA
   leg_y: SHREECEM
   tf: 5m
   lookback: 120
-- leg_x: SBIN
+- leg_x: HINDALCO
   leg_y: TATACONSUM
   tf: 5m
   lookback: 120
@@ -539,87 +503,71 @@ pairs:
   leg_y: IRFC
   tf: 5m
   lookback: 120
-- leg_x: AMBUJACEM
-  leg_y: RECLTD
-  tf: 5m
-  lookback: 120
 - leg_x: HINDALCO
   leg_y: SHREECEM
-  tf: 5m
-  lookback: 120
-- leg_x: ICICIBANK
-  leg_y: SHREECEM
-  tf: 5m
-  lookback: 120
-- leg_x: AXISBANK
-  leg_y: CHOLAFIN
-  tf: 5m
-  lookback: 120
-- leg_x: CANBK
-  leg_y: JSWSTEEL
   tf: 5m
   lookback: 120
 - leg_x: GAIL
   leg_y: TATAPOWER
   tf: 5m
   lookback: 120
-- leg_x: CGPOWER
-  leg_y: SWIGGY
-  tf: 5m
-  lookback: 120
 - leg_x: BOSCHLTD
   leg_y: DABUR
+  tf: 5m
+  lookback: 120
+- leg_x: CANBK
+  leg_y: JSWSTEEL
+  tf: 5m
+  lookback: 120
+- leg_x: CGPOWER
+  leg_y: SWIGGY
   tf: 5m
   lookback: 120
 - leg_x: GAIL
   leg_y: INFY
   tf: 5m
   lookback: 120
-- leg_x: BAJFINANCE
-  leg_y: VEDL
-  tf: 5m
-  lookback: 120
-- leg_x: TATACONSUM
-  leg_y: VEDL
-  tf: 5m
-  lookback: 120
-- leg_x: INDUSINDBK
+- leg_x: MARUTI
   leg_y: SHREECEM
   tf: 5m
   lookback: 120
-- leg_x: BAJFINANCE
-  leg_y: TATACONSUM
-  tf: 5m
-  lookback: 120
-- leg_x: AMBUJACEM
-  leg_y: BAJAJHFL
-  tf: 5m
-  lookback: 120
-- leg_x: HINDUNILVR
-  leg_y: PFC
-  tf: 5m
-  lookback: 120
-- leg_x: BAJFINANCE
-  leg_y: TATASTEEL
+- leg_x: ETERNAL
+  leg_y: SWIGGY
   tf: 5m
   lookback: 120
 - leg_x: EICHERMOT
   leg_y: SWIGGY
   tf: 5m
   lookback: 120
+- leg_x: AMBUJACEM
+  leg_y: BAJAJHFL
+  tf: 5m
+  lookback: 120
+- leg_x: BAJFINANCE
+  leg_y: VEDL
+  tf: 5m
+  lookback: 120
 - leg_x: ETERNAL
   leg_y: JSWSTEEL
   tf: 5m
   lookback: 120
-- leg_x: BEL
-  leg_y: JSWENERGY
+- leg_x: AXISBANK
+  leg_y: TATACONSUM
+  tf: 5m
+  lookback: 120
+- leg_x: AMBUJACEM
+  leg_y: RECLTD
   tf: 5m
   lookback: 120
 - leg_x: ETERNAL
-  leg_y: SWIGGY
+  leg_y: HEROMOTOCO
   tf: 5m
   lookback: 120
-- leg_x: ADANIENSOL
+- leg_x: BAJFINANCE
+  leg_y: TATASTEEL
+  tf: 5m
+  lookback: 120
+- leg_x: AXISBANK
   leg_y: CHOLAFIN
   tf: 5m
   lookback: 120
@@ -627,8 +575,28 @@ pairs:
   leg_y: RECLTD
   tf: 5m
   lookback: 120
+- leg_x: ICICIBANK
+  leg_y: SHREECEM
+  tf: 5m
+  lookback: 120
+- leg_x: BAJFINANCE
+  leg_y: TATACONSUM
+  tf: 5m
+  lookback: 120
+- leg_x: BAJAJHFL
+  leg_y: LODHA
+  tf: 5m
+  lookback: 120
 - leg_x: AMBUJACEM
   leg_y: HEROMOTOCO
+  tf: 5m
+  lookback: 120
+- leg_x: ADANIENSOL
+  leg_y: AXISBANK
+  tf: 5m
+  lookback: 120
+- leg_x: ADANIENT
+  leg_y: BPCL
   tf: 5m
   lookback: 120
 defaults:

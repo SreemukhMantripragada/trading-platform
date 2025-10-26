@@ -85,6 +85,7 @@ WARMUP_CANDLES = int(os.getenv("PAIRS_WARMUP_CANDLES", "600"))
 KITE_THROTTLE_SEC = float(os.getenv("KITE_THROTTLE_SEC", "0.2"))
 ENTRY_RECENT_BARS_DEFAULT = int(os.getenv("PAIR_ENTRY_RECENT_BARS", "2"))
 METRICS_PORT = int(os.getenv("PAIRWATCH_METRICS_PORT", os.getenv("METRICS_PORT", "8114")))
+DEFAULT_FLATTEN_HHMM = os.getenv("PAIRWATCH_FLATTEN_HHMM", "15:15")
 
 TABLE_BY_TF = {
     3: "bars_3m",
@@ -93,6 +94,23 @@ TABLE_BY_TF = {
 }
 
 IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def parse_flatten_hhmm(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        hh, mm = value.split(":")
+        h = max(0, min(23, int(hh)))
+        m = max(0, min(59, int(mm)))
+        return h * 60 + m
+    except Exception:
+        return None
+
+
+def ist_minutes(ts: int) -> int:
+    dt = datetime.fromtimestamp(ts, tz=IST)
+    return dt.hour * 60 + dt.minute
 
 _NOTIFY_ENABLED = os.getenv("PAIRWATCH_NOTIFY", "1").lower() not in {"0", "false", "no", "off"}
 _SOUND_ENABLED = os.getenv("PAIRWATCH_NOTIFY_SOUND", "1").lower() not in {"0", "false", "no", "off"}
@@ -323,6 +341,7 @@ class PairSpec:
     fixed_beta: float = 1.0
     max_hold_sec: Optional[int] = None
     entry_fresh_bars: int = ENTRY_RECENT_BARS_DEFAULT
+    flatten_cutoff_min: Optional[int] = None
 
 
 @dataclass
@@ -347,6 +366,7 @@ class PairEngine:
         self.pending_cross: Optional[PendingCross] = None
         history_len = max(spec.lookback * 6, 360)
         self.z_history: Deque[Tuple[int, float]] = deque(maxlen=history_len)
+        self.flatten_cutoff_min = spec.flatten_cutoff_min
 
     def ready(self) -> bool:
         return len(self.spreads) >= max(self.spec.lookback // 2, MIN_READY_POINTS)
@@ -362,7 +382,12 @@ class PairEngine:
             return self.spec.fixed_beta
         return beta
 
-    def _refresh_pending_cross(self, prev_z: Optional[float], z: float, entry_z: float) -> None:
+    def _refresh_pending_cross(self, prev_z: Optional[float], z: float, entry_z: float, beyond_flatten: bool) -> None:
+        if beyond_flatten:
+            self.pending_cross = None
+        # even if flattened, we still want to clear and exit early
+        if beyond_flatten:
+            return
         max_bars = max(0, self.spec.entry_fresh_bars)
         if prev_z is not None:
             crossed_upper = prev_z < entry_z <= z
@@ -412,13 +437,16 @@ class PairEngine:
         if z is None or not self.ready():
             return None
         entry_z = self.spec.entry_z
-        self._refresh_pending_cross(prev_z, z, entry_z)
+        self._refresh_pending_cross(prev_z, z, entry_z, beyond_flatten)
 
         exit_z = self.spec.exit_z
         stop_z = self.spec.stop_z
         max_hold_sec = self.spec.max_hold_sec
 
         if self.position == 0:
+            if beyond_flatten:
+                self.pending_cross = None
+                return None
             pending = self.pending_cross
             max_fresh = self.spec.entry_fresh_bars
             if pending and pending.bars_since > max_fresh:
@@ -466,6 +494,9 @@ class PairEngine:
             elapsed = ts - self.entry_ts
             if elapsed >= max_hold_sec:
                 hold_reason = f"timeout_{elapsed//60}m"
+
+        if hold_reason is None and beyond_flatten and self.position != 0:
+            hold_reason = "flatten"
 
         if hold_reason:
             prev_pos = self.position
@@ -676,6 +707,8 @@ def load_pairs(path: str) -> List[PairSpec]:
             avg_hold = float(stats.get("avg_hold_min", DEFAULT_MAX_HOLD_MIN))
             max_hold_min = max(avg_hold * 2.0, DEFAULT_MAX_HOLD_MIN)
         max_hold_sec = int(float(max_hold_min) * 60.0)
+        flatten_hhmm = row.get("flatten_hhmm") or params.get("flatten_hhmm") or DEFAULT_FLATTEN_HHMM
+        flatten_cutoff = parse_flatten_hhmm(str(flatten_hhmm))
         bucket = str(row.get("bucket", "MED")).upper()
         rpt = float(row.get("risk_per_trade", 0.01))
         pair_id = f"{leg_a}_{leg_b}_{tf}m"
@@ -697,6 +730,7 @@ def load_pairs(path: str) -> List[PairSpec]:
                 fixed_beta=fixed_beta,
                 max_hold_sec=max_hold_sec,
                 entry_fresh_bars=max(entry_fresh_bars, 0),
+                flatten_cutoff_min=flatten_cutoff,
             )
         )
     return pairs

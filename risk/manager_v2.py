@@ -30,6 +30,7 @@ PG_HOST=os.getenv("POSTGRES_HOST","localhost"); PG_PORT=int(os.getenv("POSTGRES_
 PG_DB=os.getenv("POSTGRES_DB","trading"); PG_USER=os.getenv("POSTGRES_USER","trader"); PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
 CONF=os.getenv("RISK_CONF","configs/risk_budget.yaml")
 KS=KillSwitch()
+LEVERAGE_MULT = float(os.getenv("PAIRS_LEVERAGE", os.getenv("PAIRS_BT_LEVERAGE", "5.0")))
 
 def load_conf(path)->Dict[str,Any]:
     return yaml.safe_load(open(path))
@@ -88,6 +89,13 @@ async def main():
                         sym = o["symbol"]
                         bucket = o.get("risk_bucket", "LOW")
                         extra = (o.get("extra") or {})
+                        leverage_raw = extra.get("leverage")
+                        try:
+                            leverage = float(leverage_raw if leverage_raw is not None else LEVERAGE_MULT)
+                        except (TypeError, ValueError):
+                            leverage = LEVERAGE_MULT
+                        if leverage <= 0:
+                            leverage = 1.0
                         reason = str(extra.get("reason") or "").upper()
                         if reason == "EXIT" or extra.get("pair_exit"):
                             qty = int(o.get("qty") or 0)
@@ -104,13 +112,17 @@ async def main():
                             async with pool.acquire() as con:
                                 await con.execute(
                                     "UPDATE orders SET qty=$2, status='APPROVED', extra=COALESCE(extra,'{}'::jsonb)||$3::jsonb WHERE client_order_id=$1",
-                                    o["client_order_id"], qty, json.dumps({"risk":{"qty":qty,"mode":"exit_passthrough"}})
+                                    o["client_order_id"], qty, json.dumps({"risk":{"qty":qty,"mode":"exit_passthrough","leverage":leverage}})
                                 )
                                 APPROVED.inc()
                             await prod.send_and_wait(OUT_TOPIC, json.dumps(sized).encode(), key=sym.encode())
                             result = "approved"
                             continue
-                        bucket_pct = float(conf["buckets"][bucket])
+                        bucket_conf = (conf.get("buckets") or {}).get(bucket)
+                        if isinstance(bucket_conf, dict):
+                            bucket_pct = float(bucket_conf.get("split", 0.0))
+                        else:
+                            bucket_pct = float(bucket_conf or 0.0)
                         bucket_budget = funds["tradable"] * bucket_pct
                         tick = float(conf.get("tick_size", 0.05))
                         ref = await latest_close(pool, sym)
@@ -120,16 +132,25 @@ async def main():
                         stop = sig.get("stop_px")
                         if stop is not None:
                             stop = float(stop)
-                            risk_rupees = funds["equity"] * (float(conf["risk_per_trade_pct"][bucket]) / 100.0)
+                            risk_pct_map = conf.get("risk_per_trade_pct") or {}
+                            risk_pct_raw = risk_pct_map.get(bucket, risk_pct_map.get("DEFAULT", risk_pct_map.get("default", 0.0)))
+                            try:
+                                risk_pct = float(risk_pct_raw)
+                            except (TypeError, ValueError):
+                                risk_pct = 0.0
+                            risk_rupees = funds["equity"] * (risk_pct / 100.0)
+                            risk_rupees *= leverage
                             qty = pos_size(entry, stop, risk_rupees, tick)
                         else:
-                            cap = float(conf["monetary_caps"].get(o["strategy"], 0))
-                            qty = int(cap / max(ref, 0.01))
+                            caps_map = conf.get("monetary_caps") or {}
+                            cap = float(caps_map.get(o.get("strategy"), 0))
+                            qty = int((cap * leverage) / max(ref, 0.01))
 
                         per_sym_max = int(conf.get("per_symbol_max_qty", 10_000))
                         notional = qty * entry
-                        if notional > bucket_budget:
-                            qty = int(bucket_budget / max(entry, 0.01))
+                        cash_notional = notional / leverage if leverage > 0 else notional
+                        if cash_notional > bucket_budget:
+                            qty = int((bucket_budget * leverage) / max(entry, 0.01))
                         qty = max(0, min(qty, per_sym_max))
 
                         if qty <= 0:
@@ -145,12 +166,16 @@ async def main():
                         sized = dict(o)
                         sized["qty"] = qty
                         sized["status"] = "APPROVED"
-                        sized.setdefault("extra", {}).update({"risk": {"qty": qty, "entry_ref": entry, "bucket_budget": bucket_budget}})
+                        sized_extra = dict(sized.get("extra") or {})
+                        risk_block = dict((sized_extra.get("risk") or {}))
+                        risk_block.update({"qty": qty, "entry_ref": entry, "bucket_budget": bucket_budget, "leverage": leverage})
+                        sized_extra["risk"] = risk_block
+                        sized["extra"] = sized_extra
 
                         async with pool.acquire() as con:
                             await con.execute(
                                 "UPDATE orders SET qty=$2, status='APPROVED', extra=COALESCE(extra,'{}'::jsonb)||$3::jsonb WHERE client_order_id=$1",
-                                o["client_order_id"], qty, json.dumps({"risk":{"qty":qty}})
+                                o["client_order_id"], qty, json.dumps({"risk":{"qty":qty,"leverage":leverage}})
                             )
                             APPROVED.inc()
                         await prod.send_and_wait(OUT_TOPIC, json.dumps(sized).encode(), key=sym.encode())

@@ -27,6 +27,8 @@ from execution.throttle import Throttles
 from execution.oms import OMS
 from typing import Dict, Any, Tuple, Optional
 
+LEVERAGE_MULT = float(os.getenv("PAIRS_LEVERAGE", os.getenv("PAIRS_BT_LEVERAGE", "5.0")))
+
 BROKER   = os.getenv("KAFKA_BROKER","localhost:9092")
 IN_TOPIC = os.getenv("IN_TOPIC","pairs.signals")
 OUT_TOPIC= os.getenv("OUT_TOPIC","orders")
@@ -79,12 +81,56 @@ def load_pairs_config(path: str) -> dict[Tuple[str,str], dict]:
             continue
         key = tuple(sorted((leg_a, leg_b)))
         stats = row.get("stats") or {}
+        notional = row.get("notional")
+        notional_per_leg = row.get("notional_per_leg")
+        base_notional = row.get("base_notional")
+        params_block = row.get("params") or {}
+        leverage = row.get("leverage")
+        if leverage is None:
+            leverage = params_block.get("leverage")
+        try:
+            leverage = float(leverage)
+        except Exception:
+            leverage = None
+        if base_notional is None and params_block.get("base_notional") is not None:
+            base_notional = params_block.get("base_notional")
+        if base_notional is None and params_block.get("notional_per_leg") is not None:
+            try:
+                base_notional = float(params_block.get("notional_per_leg")) * 2.0
+            except Exception:
+                pass
+        if base_notional is None and notional_per_leg is not None:
+            try:
+                base_notional = float(notional_per_leg) * 2.0
+            except Exception:
+                base_notional = None
+        if base_notional is None and notional is not None and leverage:
+            try:
+                base_notional = float(notional) / float(leverage or 1.0)
+            except Exception:
+                base_notional = None
+        try:
+            base_notional = float(base_notional)
+        except Exception:
+            base_notional = None
+        try:
+            notional = float(notional)
+        except Exception:
+            notional = None
+        if notional is None and base_notional is not None and leverage:
+            try:
+                notional = base_notional * float(leverage or 1.0)
+            except Exception:
+                pass
         out[key] = {
             "symbol": sym,
             "bucket": str(row.get("bucket","MED")).upper(),
             "strategy": str(row.get("strategy") or "PAIRS"),
             "risk_per_trade": row.get("risk_per_trade"),
             "avg_hold_min": stats.get("avg_hold_min", row.get("avg_hold_min", 0.0)),
+            "notional": notional,
+            "base_notional": base_notional,
+            "leverage": leverage,
         }
     return out
 
@@ -233,12 +279,41 @@ async def main():
                     await consumer.commit()
                     continue
 
-                notional = max_per_trade
-                if meta and meta.get("notional") is not None:
-                    try:
-                        notional = float(meta["notional"])
-                    except Exception:
-                        pass
+                base_notional = max_per_trade
+                if meta:
+                    candidate = meta.get("base_notional")
+                    if candidate is None and meta.get("notional_per_leg") is not None:
+                        try:
+                            candidate = float(meta.get("notional_per_leg")) * 2.0
+                        except Exception:
+                            candidate = None
+                    if candidate is None and meta.get("notional") is not None and meta.get("leverage"):
+                        try:
+                            candidate = float(meta.get("notional")) / float(meta.get("leverage") or 1.0)
+                        except Exception:
+                            candidate = None
+                    if candidate is None and meta.get("notional") is not None:
+                        candidate = meta.get("notional")
+                    if candidate is not None:
+                        try:
+                            base_notional = float(candidate)
+                        except Exception:
+                            pass
+                if base_notional <= 0:
+                    base_notional = max_per_trade
+
+                meta_leverage = None
+                if meta:
+                    meta_leverage = meta.get("leverage")
+                leverage = meta_leverage if isinstance(meta_leverage, (int, float)) else None
+                if leverage is None:
+                    leverage = LEVERAGE_MULT
+                try:
+                    leverage = float(leverage)
+                except Exception:
+                    leverage = LEVERAGE_MULT
+                leverage = max(1.0, leverage)
+                effective_notional = base_notional * leverage
 
                 if act_label == "EXIT":
                     net = await positions_today(pool, pair_id)
@@ -256,6 +331,9 @@ async def main():
                         "pair_symbol": pair_symbol,
                         "avg_hold_min": avg_hold,
                         "risk_per_trade": risk_override,
+                        "leverage": leverage,
+                        "base_notional": base_notional,
+                        "effective_notional": effective_notional,
                     }
                     oA = {
                         "client_order_id": coid(pair_id, "A"),
@@ -297,8 +375,7 @@ async def main():
                     print(f"[pairs-exec] EXIT {pair_symbol} bucket={bucket} qA={qA} qB={qB} reason={exit_reason}")
                     await consumer.commit()
                     continue
-
-                qA, qB = size_legs(notional, pxA, pxB, beta)
+                qA, qB = size_legs(effective_notional, pxA, pxB, beta)
                 if qA < 1 or qB < 1:
                     REJECTS.labels("tiny_qty").inc()
                     await consumer.commit()
@@ -330,6 +407,9 @@ async def main():
                     "beta": beta,
                     "avg_hold_min": avg_hold,
                     "risk_per_trade": risk_override,
+                    "leverage": leverage,
+                    "base_notional": base_notional,
+                    "effective_notional": effective_notional,
                 }
 
                 oA = {
@@ -374,6 +454,9 @@ async def main():
                     "bucket": bucket,
                     "beta": beta,
                     "ts": order_ts,
+                    "leverage": leverage,
+                    "base_notional": base_notional,
+                    "effective_notional": effective_notional,
                 }
                 save_state(positions_state)
                 OPEN_PAIRS.set(len(positions_state))

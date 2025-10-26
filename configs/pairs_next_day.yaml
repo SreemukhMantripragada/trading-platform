@@ -1,229 +1,829 @@
 selections:
-- symbol: INDUSINDBK-SHREECEM
-  strategy: PAIRS_MEANREV
-  timeframe: 15
-  params:
-    lookback: 120
-  max_dd: 10913.803299999796
-  score: 28.897034276769038
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 103174.3767
-    n_trades: 27
-    win_rate: 62.963
-    profit_per_trade: 3821.2732
-    avg_hold_min: 145.5556
-- symbol: NAUKRI-WIPRO
+- symbol: HINDALCO-SHREECEM
   strategy: PAIRS_MEANREV
   timeframe: 3
   params:
     lookback: 120
-  max_dd: 11346.994657000032
-  score: 6.328342103095956
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 23329.056414999985
+  score: 25.65871466284675
   bucket: LOW
   risk_per_trade: 0.01
   stats:
-    pnl: 31644.5657
-    n_trades: 90
-    win_rate: 64.4444
-    profit_per_trade: 351.6063
-    avg_hold_min: 71.9
-- symbol: BANKBARODA-GODREJCP
-  strategy: PAIRS_MEANREV
-  timeframe: 3
-  params:
-    lookback: 120
-  max_dd: 15520.810267000212
-  score: 5.557090476592627
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 31676.5973
-    n_trades: 77
-    win_rate: 61.039
-    profit_per_trade: 411.3844
-    avg_hold_min: 70.4416
+    pnl: 104587.3823
+    n_trades: 71
+    win_rate: 61.9718
+    profit_per_trade: 1473.0617
+    avg_hold_min: 48.2535
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
 - symbol: ADANIENSOL-PNB
   strategy: PAIRS_MEANREV
-  timeframe: 5
-  params:
-    lookback: 120
-  max_dd: 4129.861275999989
-  score: 5.05442277853622
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 33122.0535
-    n_trades: 57
-    win_rate: 73.6842
-    profit_per_trade: 581.0887
-    avg_hold_min: 144.6491
-- symbol: BAJAJHFL-PIDILITIND
-  strategy: PAIRS_MEANREV
   timeframe: 15
   params:
     lookback: 120
-  max_dd: 5006.524366000045
-  score: 4.191392225112053
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 1894.246632000023
+  score: 6.792161541213251
   bucket: LOW
   risk_per_trade: 0.01
   stats:
-    pnl: 16885.6053
-    n_trades: 30
-    win_rate: 66.6667
-    profit_per_trade: 562.8535
-    avg_hold_min: 133.0
-- symbol: INDHOTEL-ULTRACEMCO
-  strategy: PAIRS_MEANREV
-  timeframe: 15
-  params:
-    lookback: 120
-  max_dd: 7677.668320000348
-  score: 2.8350157741031303
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 15091.7659
-    n_trades: 19
-    win_rate: 63.1579
-    profit_per_trade: 794.3035
-    avg_hold_min: 178.4211
-- symbol: HINDUNILVR-PFC
-  strategy: PAIRS_MEANREV
-  timeframe: 5
-  params:
-    lookback: 120
-  max_dd: 3768.883809999901
-  score: 2.752821967402552
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 19506.8962
-    n_trades: 57
-    win_rate: 64.9123
-    profit_per_trade: 342.2262
-    avg_hold_min: 112.8947
-- symbol: AXISBANK-PNB
-  strategy: PAIRS_MEANREV
-  timeframe: 15
-  params:
-    lookback: 120
-  max_dd: 3003.893843999971
-  score: 2.684330711414445
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 11477.3353
-    n_trades: 28
-    win_rate: 64.2857
-    profit_per_trade: 409.9048
-    avg_hold_min: 151.0714
-- symbol: ADANIENSOL-CANBK
-  strategy: PAIRS_MEANREV
-  timeframe: 15
-  params:
-    lookback: 120
-  max_dd: 4832.367155000026
-  score: 2.0057049421693343
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 9887.6618
-    n_trades: 26
-    win_rate: 65.3846
-    profit_per_trade: 380.2947
-    avg_hold_min: 139.0385
-- symbol: SBIN-TATACONSUM
-  strategy: PAIRS_MEANREV
-  timeframe: 3
-  params:
-    lookback: 120
-  max_dd: 8817.121215000065
-  score: 1.8861888234971969
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 13558.1275
-    n_trades: 90
-    win_rate: 60.0
-    profit_per_trade: 150.6459
-    avg_hold_min: 94.6333
-- symbol: RECLTD-AMBUJACEM
-  strategy: PAIRS_MEANREV
-  timeframe: 3
-  params:
-    lookback: 120
-  max_dd: 13059.304715000202
-  score: 1.4054453132303613
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 11139.8061
-    n_trades: 81
-    win_rate: 61.7284
-    profit_per_trade: 137.5285
-    avg_hold_min: 65.5556
-- symbol: SUNPHARMA-TATAPOWER
-  strategy: PAIRS_MEANREV
-  timeframe: 15
-  params:
-    lookback: 120
-  max_dd: 3557.176149999953
-  score: 1.3430101883957308
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 6905.4484
-    n_trades: 24
-    win_rate: 66.6667
-    profit_per_trade: 287.727
-    avg_hold_min: 166.875
-- symbol: AMBUJACEM-IRFC
-  strategy: PAIRS_MEANREV
-  timeframe: 5
-  params:
-    lookback: 120
-  max_dd: 5379.748979999816
-  score: 1.1342239122220383
-  bucket: LOW
-  risk_per_trade: 0.01
-  stats:
-    pnl: 10179.237
-    n_trades: 58
-    win_rate: 60.3448
-    profit_per_trade: 175.5041
-    avg_hold_min: 83.0172
+    pnl: 25543.0355
+    n_trades: 13
+    win_rate: 69.2308
+    profit_per_trade: 1964.8489
+    avg_hold_min: 135.0
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
 - symbol: HEROMOTOCO-INDUSINDBK
   strategy: PAIRS_MEANREV
   timeframe: 5
   params:
     lookback: 120
-  max_dd: 10284.001319999921
-  score: 0.9967105452025666
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 12901.84293499992
+  score: 6.232765539923645
   bucket: LOW
   risk_per_trade: 0.01
   stats:
-    pnl: 13821.5831
-    n_trades: 55
-    win_rate: 61.8182
-    profit_per_trade: 251.3015
-    avg_hold_min: 96.1818
-- symbol: GAIL-TATAPOWER
+    pnl: 29521.4516
+    n_trades: 40
+    win_rate: 57.5
+    profit_per_trade: 738.0363
+    avg_hold_min: 76.125
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: NAUKRI-WIPRO
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 6608.8146569998935
+  score: 6.064134573050668
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 26055.8427
+    n_trades: 35
+    win_rate: 57.1429
+    profit_per_trade: 744.4526
+    avg_hold_min: 74.0
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ADANIENSOL-IOC
   strategy: PAIRS_MEANREV
   timeframe: 15
   params:
     lookback: 120
-  max_dd: 6534.800922000133
-  score: 0.28698168827372633
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 11020.521152999969
+  score: 4.523817050881485
   bucket: LOW
   risk_per_trade: 0.01
   stats:
-    pnl: 6603.0155
-    n_trades: 20
+    pnl: 24025.3935
+    n_trades: 13
+    win_rate: 69.2308
+    profit_per_trade: 1848.1072
+    avg_hold_min: 154.6154
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: GAIL-INFY
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 5665.107041999745
+  score: 4.249746415774566
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 19312.3019
+    n_trades: 60
+    win_rate: 58.3333
+    profit_per_trade: 321.8717
+    avg_hold_min: 42.45
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BAJAJ-AUTO-ETERNAL
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 11873.220819999891
+  score: 4.166293326951487
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 19534.472
+    n_trades: 42
+    win_rate: 64.2857
+    profit_per_trade: 465.1065
+    avg_hold_min: 62.0238
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: EICHERMOT-ETERNAL
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 6412.526849999995
+  score: 3.973954692928639
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 17766.6218
+    n_trades: 72
+    win_rate: 61.1111
+    profit_per_trade: 246.7586
+    avg_hold_min: 47.9583
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BOSCHLTD-DABUR
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 8016.475530000338
+  score: 3.939095190962023
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 19638.0518
+    n_trades: 74
+    win_rate: 58.1081
+    profit_per_trade: 265.3791
+    avg_hold_min: 45.2027
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: CANBK-JSWSTEEL
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 7986.188702000014
+  score: 3.7488798184931205
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 20196.4271
+    n_trades: 67
+    win_rate: 55.2239
+    profit_per_trade: 301.4392
+    avg_hold_min: 51.2239
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: INFY-NAUKRI
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 2142.8821500000067
+  score: 3.2204401544902836
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 14266.8356
+    n_trades: 12
+    win_rate: 75.0
+    profit_per_trade: 1188.903
+    avg_hold_min: 160.0
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ADANIENSOL-CANBK
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 2947.9692930000497
+  score: 3.068886744370668
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 16416.1576
+    n_trades: 13
+    win_rate: 61.5385
+    profit_per_trade: 1262.7814
+    avg_hold_min: 115.3846
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: IOC-PNB
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 4260.911629000018
+  score: 3.016147465764258
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 18973.6006
+    n_trades: 14
+    win_rate: 57.1429
+    profit_per_trade: 1355.2572
+    avg_hold_min: 188.5714
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BAJFINANCE-TATACONSUM
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 1723.0422249999083
+  score: 2.8681947862353634
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 9920.8245
+    n_trades: 40
+    win_rate: 65.0
+    profit_per_trade: 248.0206
+    avg_hold_min: 54.125
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: AXISBANK-PNB
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 3073.8154260000965
+  score: 2.84545073946342
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 14361.3474
+    n_trades: 13
+    win_rate: 69.2308
+    profit_per_trade: 1104.719
+    avg_hold_min: 125.7692
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: AXISBANK-TATACONSUM
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 2426.678339999924
+  score: 2.669711730206451
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 11798.0691
+    n_trades: 41
+    win_rate: 58.5366
+    profit_per_trade: 287.7578
+    avg_hold_min: 63.7805
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ETERNAL-MARUTI
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 2137.179424999966
+  score: 2.5761114084876082
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 12188.2159
+    n_trades: 15
+    win_rate: 73.3333
+    profit_per_trade: 812.5477
+    avg_hold_min: 125.0
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ICICIPRULI-LODHA
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 10669.595044999898
+  score: 0.774294200074284
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 7223.0451
+    n_trades: 31
+    win_rate: 64.5161
+    profit_per_trade: 233.0015
+    avg_hold_min: 58.2258
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ETERNAL-HEROMOTOCO
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 14347.083770000272
+  score: 0.534046635220321
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 11031.9391
+    n_trades: 38
+    win_rate: 57.8947
+    profit_per_trade: 290.3142
+    avg_hold_min: 87.7632
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: AMBUJACEM-RECLTD
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 8903.768849999973
+  score: 0.40379536017750933
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 7045.2661
+    n_trades: 69
+    win_rate: 60.8696
+    profit_per_trade: 102.1053
+    avg_hold_min: 77.087
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: AMBUJACEM-BAJAJHFL
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 11501.436337999558
+  score: 0.40138654649924077
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 9296.6442
+    n_trades: 67
+    win_rate: 56.7164
+    profit_per_trade: 138.7559
+    avg_hold_min: 40.4776
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BAJFINANCE-TATASTEEL
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 14691.39890400003
+  score: 0.3885011495710868
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 13126.3049
+    n_trades: 18
+    win_rate: 72.2222
+    profit_per_trade: 729.2392
+    avg_hold_min: 154.1667
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: SBIN-TATACONSUM
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 3526.742359999963
+  score: -0.5686524322493829
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 5518.4635
+    n_trades: 14
+    win_rate: 64.2857
+    profit_per_trade: 394.176
+    avg_hold_min: 124.2857
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: EICHERMOT-SWIGGY
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 16320.834375000162
+  score: -0.7152252963900078
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 6598.2063
+    n_trades: 38
+    win_rate: 60.5263
+    profit_per_trade: 173.637
+    avg_hold_min: 78.0263
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BAJAJHFL-PIDILITIND
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 4009.474680999927
+  score: -0.951198384550952
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 6098.0581
+    n_trades: 14
+    win_rate: 57.1429
+    profit_per_trade: 435.5756
+    avg_hold_min: 121.0714
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: BAJAJ-AUTO-SWIGGY
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 10046.803915000131
+  score: -1.2830539106718137
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 2044.7061
+    n_trades: 37
+    win_rate: 56.7568
+    profit_per_trade: 55.2623
+    avg_hold_min: 52.8378
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: INDUSINDBK-SHREECEM
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 9033.048994999837
+  score: -1.3004038547165728
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 6184.7444
+    n_trades: 14
+    win_rate: 64.2857
+    profit_per_trade: 441.7675
+    avg_hold_min: 115.7143
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: APOLLOHOSP-GRASIM
+  strategy: PAIRS_MEANREV
+  timeframe: 3
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 8197.46003000007
+  score: -1.3613254956600804
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 2095.3671
+    n_trades: 72
+    win_rate: 56.9444
+    profit_per_trade: 29.1023
+    avg_hold_min: 88.2083
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: M&M-SWIGGY
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 4064.2877299998786
+  score: -1.3870191079737149
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 3732.8092
+    n_trades: 10
     win_rate: 60.0
-    profit_per_trade: 330.1508
-    avg_hold_min: 162.0
+    profit_per_trade: 373.2809
+    avg_hold_min: 87.0
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: ETERNAL-SWIGGY
+  strategy: PAIRS_MEANREV
+  timeframe: 5
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 14380.414904999876
+  score: -2.002736684458613
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 1595.3669
+    n_trades: 37
+    win_rate: 59.4595
+    profit_per_trade: 43.118
+    avg_hold_min: 77.1622
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: INDHOTEL-ULTRACEMCO
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 2916.7471700000497
+  score: -2.2775224563547694
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 227.0376
+    n_trades: 11
+    win_rate: 63.6364
+    profit_per_trade: 20.6398
+    avg_hold_min: 121.3636
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: INDHOTEL-TECHM
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 6872.789355000035
+  score: -3.3887073554823157
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 1027.4098
+    n_trades: 14
+    win_rate: 57.1429
+    profit_per_trade: 73.3864
+    avg_hold_min: 161.7857
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
+- symbol: CHOLAFIN-PNB
+  strategy: PAIRS_MEANREV
+  timeframe: 15
+  params:
+    lookback: 120
+    leverage: 5.0
+    entry_z: 2.0
+    exit_z: 1.0
+    stop_z: 3.0
+    notional_per_leg: 50000.0
+    base_notional: 100000.0
+  max_dd: 16584.816926000072
+  score: -3.8364604934386577
+  bucket: LOW
+  risk_per_trade: 0.01
+  stats:
+    pnl: 3343.3782
+    n_trades: 16
+    win_rate: 62.5
+    profit_per_trade: 208.9611
+    avg_hold_min: 131.25
+  notional: 500000.0
+  base_notional: 100000.0
+  notional_per_leg: 50000.0
+  leverage: 5.0
 budgets:
   LOW: 0.4
   MED: 0.35

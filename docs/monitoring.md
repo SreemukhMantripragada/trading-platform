@@ -30,6 +30,7 @@ The pairs paper stack now exposes consistent Prometheus metrics for every hop in
 | --- | --- | --- |
 | Zerodha websocket ingestor | `ingestion/zerodha_ws.py` | 8111 |
 | 1s bar builder | `compute/bar_builder_1s.py` | 8112 |
+| 1m bar aggregator | `compute/bar_aggregator_1m.py` | 8118 |
 | 1m→multi aggregator | `compute/bar_aggregator_1m_to_multi.py` | 8113 |
 | Pair watch producer | `compute/pair_watch_producer.py` | 8114 |
 | Pairs executor | `execution/pairs_executor.py` | 8115 |

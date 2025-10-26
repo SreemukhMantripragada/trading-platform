@@ -39,10 +39,13 @@ Writes:
 """
 
 import os, sys, csv, math, json, yaml, asyncio, asyncpg, argparse
+import copy
 import multiprocessing as mp
+from itertools import product
 from collections import deque
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from collections import defaultdict
 
 from backtest.scorer import (
     DEFAULT_GATES,
@@ -52,6 +55,8 @@ from backtest.scorer import (
 )
 
 from backtest.persistence import get_latest_run_id, save_results, write_next_day_yaml
+
+LEVERAGE_MULT = float(os.getenv("PAIRS_BT_LEVERAGE", "5.0"))
 
 # ----------------- helpers -----------------
 def load_yaml(path, default=None):
@@ -63,6 +68,69 @@ def load_yaml(path, default=None):
 IST = timezone(timedelta(hours=5, minutes=30))
 
 TF_LOOKUP = {"1m": 1, "3m": 3, "5m": 5, "15m": 15}
+
+def _value_from_cfg(pair_cfg: Dict[str, Any], defaults: Dict[str, Any], key: str, fallback: float) -> float:
+    val = pair_cfg.get(key)
+    if val is None:
+        val = defaults.get(key, fallback)
+    try:
+        return float(val)
+    except Exception:
+        return float(fallback)
+
+def _grid_values(pair_cfg: Dict[str, Any], defaults: Dict[str, Any], key: str, fallback: float) -> List[float]:
+    grid_key = f"{key}_grid"
+    source = pair_cfg.get(grid_key)
+    if source is None:
+        source = defaults.get(grid_key)
+    if source is None:
+        base = _value_from_cfg(pair_cfg, defaults, key, fallback)
+        source = [base]
+    if not isinstance(source, (list, tuple, set)):
+        source = [source]
+    out: List[float] = []
+    for item in source:
+        try:
+            out.append(float(item))
+        except Exception:
+            continue
+    if not out:
+        out.append(float(fallback))
+    return out
+
+def _format_variant_id(entry_z: float, exit_z: float, stop_z: float) -> str:
+    def _fmt(val: float) -> str:
+        text = f"{val:.2f}".rstrip("0").rstrip(".")
+        text = text if text else "0"
+        return text.replace("-", "m").replace(".", "p")
+    return f"ez{_fmt(entry_z)}_xz{_fmt(exit_z)}_sz{_fmt(stop_z)}"
+
+def _expand_pair_configs(pair_cfg: Dict[str, Any], defaults: Dict[str, Any]) -> List[Dict[str, Any]]:
+    entry_default = _value_from_cfg(pair_cfg, defaults, "entry_z", 2.0)
+    exit_default = _value_from_cfg(pair_cfg, defaults, "exit_z", 1.0)
+    stop_default = _value_from_cfg(pair_cfg, defaults, "stop_z", 3.0)
+    notional_default = _value_from_cfg(pair_cfg, defaults, "notional_per_leg", 50_000.0)
+
+    entry_vals = _grid_values(pair_cfg, defaults, "entry_z", entry_default)
+    exit_vals = _grid_values(pair_cfg, defaults, "exit_z", exit_default)
+    stop_vals = _grid_values(pair_cfg, defaults, "stop_z", stop_default)
+    default_leverage = _value_from_cfg(pair_cfg, defaults, "leverage", LEVERAGE_MULT)
+
+    variants: List[Dict[str, Any]] = []
+    grid_size = len(entry_vals) * len(exit_vals) * len(stop_vals)
+    combo_iter = product(entry_vals, exit_vals, stop_vals)
+    for combo_idx, (entry_v, exit_v, stop_v) in enumerate(combo_iter, start=1):
+        cfg = dict(pair_cfg)
+        cfg.setdefault("leverage", default_leverage)
+        cfg["entry_z"] = float(entry_v)
+        cfg["exit_z"] = float(exit_v)
+        cfg["stop_z"] = float(stop_v)
+        cfg["notional_per_leg"] = float(notional_default)
+        cfg["grid_index"] = combo_idx
+        cfg["grid_size"] = grid_size
+        cfg["variant_id"] = _format_variant_id(entry_v, exit_v, stop_v)
+        variants.append(cfg)
+    return variants
 
 def _parse_flatten_cutoff(val: Optional[str]) -> Optional[int]:
     if not val:
@@ -251,10 +319,14 @@ def simulate_pair(
     beta_mode   = pair_cfg.get("hedge_mode", "dynamic")  # "dynamic" or "fixed"
     fixed_beta  = float(pair_cfg.get("fixed_beta", 1.0))
     entry_z     = float(pair_cfg.get("entry_z", 2.0))
-    exit_z      = float(pair_cfg.get("exit_z", 0.5))
-    stop_z      = float(pair_cfg.get("stop_z", 4.0))
-    max_hold_min= int(pair_cfg.get("max_hold_min", 240))
-    notional    = float(pair_cfg.get("notional_per_leg", 250000))
+    exit_z      = float(pair_cfg.get("exit_z", 1))
+    stop_z      = float(pair_cfg.get("stop_z", 3.0))
+    max_hold_min= int(pair_cfg.get("max_hold_min", 400))
+    notional_per_leg = float(pair_cfg.get("notional_per_leg", 50_000.0))
+    leverage = float(pair_cfg.get("leverage", LEVERAGE_MULT))
+    if not math.isfinite(leverage) or leverage <= 0:
+        leverage = LEVERAGE_MULT
+    total_notional  = max(0.0, notional_per_leg * leverage * 2.0)
 
     rx = TFResampler(tf_minutes); ry = TFResampler(tf_minutes)
     i=j=0; nx=len(series_x); ny=len(series_y)
@@ -283,9 +355,11 @@ def simulate_pair(
         if abs(den) < 1e-12: return None
         return (n*sxy - sx*sy)/den
 
-    def sized_qty(px, b):
-        qx = max(1, int(notional/max(px,1.0)))
-        qy = max(1, int((notional/max(px,1.0))/max(abs(b),1.0)))
+    def sized_qty(px, py, b):
+        b_abs = abs(b) if not math.isnan(b) else 1.0
+        denom = max((px + b_abs * py), 1e-6)
+        qx = max(1, int(total_notional / denom))
+        qy = max(1, int(b_abs * qx))
         return qx, qy
 
     open_pos: Optional[Dict[str, Any]] = None
@@ -297,6 +371,7 @@ def simulate_pair(
     peak_eq = 0.0
     max_dd_val = 0.0
     last_prices: Optional[Tuple[int, float, float]] = None
+    prev_z: Optional[float] = None
 
     def _close_position(t_ts: int, x_px: float, y_px: float, z_val: Optional[float], reason: str):
         nonlocal open_pos, eq, peak_eq, max_dd_val
@@ -373,32 +448,36 @@ def simulate_pair(
             beyond_flatten = (flatten_cutoff_min is not None) and (ist_minutes >= flatten_cutoff_min)
 
             if open_pos is None:
-                if not beyond_flatten and abs(z) >= entry_z:
-                    side = "SHORTSPREAD" if z > 0 else "LONGSPREAD"
-                    qx, qy = sized_qty(x, cur_beta)
-                    trades.append({
-                        "ts": t,
-                        "action": "OPEN",
-                        "side": side,
-                        "beta": cur_beta,
-                        "z": float(z),
-                        "x_px": x,
-                        "y_px": y,
-                        "qx": qx,
-                        "qy": qy,
-                    })
-                    open_pos = {
-                        "since": t,
-                        "side": side,
-                        "beta": cur_beta,
-                        "qx": qx,
-                        "qy": qy,
-                        "x_open": x,
-                        "y_open": y,
-                        "entry_z": float(z),
-                        "last_z": float(z),
-                    }
+                crossed_upper = prev_z is not None and prev_z < entry_z and z >= entry_z
+                crossed_lower = prev_z is not None and prev_z > -entry_z and z <= -entry_z
+                if not beyond_flatten and (crossed_upper or crossed_lower):
+                    side = "SHORTSPREAD" if crossed_upper else "LONGSPREAD"
+                    qx, qy = sized_qty(x, y, cur_beta)
+                    if qx > 0 and qy > 0:
+                        trades.append({
+                            "ts": t,
+                            "action": "OPEN",
+                            "side": side,
+                            "beta": cur_beta,
+                            "z": float(z),
+                            "x_px": x,
+                            "y_px": y,
+                            "qx": qx,
+                            "qy": qy,
+                        })
+                        open_pos = {
+                            "since": t,
+                            "side": side,
+                            "beta": cur_beta,
+                            "qx": qx,
+                            "qy": qy,
+                            "x_open": x,
+                            "y_open": y,
+                            "entry_z": float(z),
+                            "last_z": float(z),
+                        }
                 del pend[t]
+                prev_z = float(z)
                 continue
 
             # Position management
@@ -418,6 +497,7 @@ def simulate_pair(
                     reason = "CLOSE"
                 _close_position(t, x, y, float(z), reason)
             del pend[t]
+            prev_z = float(z)
 
     if open_pos is not None and last_prices is not None:
         t_last, x_last, y_last = last_prices
@@ -456,7 +536,7 @@ def simulate_pair(
 def _filter_params(pair_cfg: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for k, v in pair_cfg.items():
-        if k in ("leg_x", "leg_y", "tf", "name", "strategy_name"):
+        if k in ("leg_x", "leg_y", "tf", "name", "strategy_name", "variant_id", "grid_index", "grid_size"):
             continue
         if isinstance(v, (str, int, float, bool)) or v is None:
             out[k] = v
@@ -474,14 +554,16 @@ def _simulate_pair_core(
     local_flatten = _parse_flatten_cutoff(pair_cfg.get("ist_flatten_hhmm")) or default_flatten_min
     tf_key = pair_cfg.get("tf", "1m")
     tfm = TF_LOOKUP.get(tf_key, 1)
-    key = f'{pair_cfg["leg_x"]}|{pair_cfg["leg_y"]}|{tf_key}'
+    base_key = f'{pair_cfg["leg_x"]}|{pair_cfg["leg_y"]}|{tf_key}'
+    variant_id = pair_cfg.get("variant_id")
+    sim_key = f"{base_key}|{variant_id}" if variant_id else base_key
     symbol = f'{pair_cfg["leg_x"]}-{pair_cfg["leg_y"]}'
 
     series_x = series_lookup.get(pair_cfg["leg_x"], [])
     series_y = series_lookup.get(pair_cfg["leg_y"], [])
 
     summary_core, trades = simulate_pair(
-        key,
+        sim_key,
         pair_cfg,
         series_x,
         series_y,
@@ -493,6 +575,12 @@ def _simulate_pair_core(
     )
 
     params = _filter_params(pair_cfg)
+    leverage_cfg = float(pair_cfg.get("leverage", LEVERAGE_MULT) or LEVERAGE_MULT)
+    if not math.isfinite(leverage_cfg) or leverage_cfg <= 0:
+        leverage_cfg = LEVERAGE_MULT
+    params["leverage"] = leverage_cfg
+    params.setdefault("notional_per_leg", float(pair_cfg.get("notional_per_leg", 0.0) or 0.0))
+    params.setdefault("base_notional", params["notional_per_leg"] * 2.0)
     strategy_name = pair_cfg.get("strategy_name") or default_strategy
     flatten_label = pair_cfg.get("ist_flatten_hhmm")
     if flatten_label is None and local_flatten is not None:
@@ -500,7 +588,7 @@ def _simulate_pair_core(
 
     summary = {
         **summary_core,
-        "pair": key,
+        "pair": base_key,
         "symbol": symbol,
         "strategy": strategy_name,
         "timeframe": tfm,
@@ -508,7 +596,12 @@ def _simulate_pair_core(
         "leg_x": pair_cfg["leg_x"],
         "leg_y": pair_cfg["leg_y"],
         "flatten_hhmm": flatten_label,
+        "variant_id": variant_id,
     }
+    summary["leverage"] = leverage_cfg
+    summary["notional_per_leg"] = float(pair_cfg.get("notional_per_leg", 0.0) or 0.0)
+    summary["base_notional"] = summary["notional_per_leg"] * 2.0
+    summary["notional"] = summary["base_notional"] * summary["leverage"]
 
     summary.setdefault("score", None)
     summary.setdefault("rank", None)
@@ -517,7 +610,7 @@ def _simulate_pair_core(
     ledger_rows: List[Dict[str, Any]] = []
     for trade in trades:
         ts_iso = datetime.fromtimestamp(trade["ts"], timezone.utc).isoformat()
-        row = {"pair": key, "symbol": symbol, **trade, "ts_iso": ts_iso}
+        row = {"pair": base_key, "symbol": symbol, "variant_id": variant_id, **trade, "ts_iso": ts_iso}
         ledger_rows.append(row)
 
     return summary, ledger_rows
@@ -563,11 +656,20 @@ def _mp_context():
 async def main(workers_override: int | None = None):
     pairs_cfg = load_yaml("configs/pairs.yaml")
     costs_cfg = load_yaml(os.getenv("COSTS_FILE","configs/costs.yaml"))
-    pairs = pairs_cfg.get("pairs", [])
-    if not pairs:
+    raw_pairs = pairs_cfg.get("pairs", [])
+    if not raw_pairs:
         print("No pairs defined in configs/pairs.yaml"); sys.exit(1)
 
     defaults = pairs_cfg.get("defaults", {}) or {}
+    pairs: List[Dict[str, Any]] = []
+    for pair in raw_pairs:
+        variants = _expand_pair_configs(pair, defaults)
+        pairs.extend(variants)
+    if not pairs:
+        print("No parameter variants generated for pairs."); sys.exit(1)
+    if len(pairs) != len(raw_pairs):
+        print(f"[pairs-bt] parameter grid expanded {len(raw_pairs)} base pairs into {len(pairs)} variants")
+
     default_flatten_str = defaults.get("ist_flatten_hhmm") or "15:15"
     flatten_cutoff_min = _parse_flatten_cutoff(str(default_flatten_str))
     strategy_name = str(defaults.get("strategy_name") or "PAIRS_MEANREV").upper()
@@ -660,9 +762,8 @@ async def main(workers_override: int | None = None):
     mode = "parallel" if workers > 1 else "sequential"
     print(f"[pairs-bt] running {len(pairs)} pairs with {workers} worker(s) ({mode})")
 
-    summaries: List[Dict[str, Any]] = []
-    ledger: List[Dict[str, Any]] = []
-    ledger_by_pair: Dict[str, List[Dict[str, Any]]] = {}
+    tf_variant_summaries: Dict[int, Dict[Optional[str], List[Dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
+    tf_variant_ledgers: Dict[int, Dict[Optional[str], Dict[str, List[Dict[str, Any]]]]] = defaultdict(lambda: defaultdict(dict))
 
     if workers > 1:
         ctx = _mp_context()
@@ -675,10 +776,11 @@ async def main(workers_override: int | None = None):
             results = pool_exec.map(_mp_worker, jobs)
         for idx, summ, rows in sorted(results, key=lambda r: r[0]):
             if summ:
-                summaries.append(summ)
-                ledger_by_pair[summ["pair"]] = rows or []
-            if rows:
-                ledger.extend(rows)
+                variant = summ.get("variant_id")
+                tfm = int(summ.get("timeframe", summ.get("tf_min", 0)) or 0)
+                tf_variant_summaries[tfm][variant].append(summ)
+                if rows:
+                    tf_variant_ledgers[tfm][variant][summ["pair"]] = rows or []
             if idx % 5 == 0 or idx == len(pairs):
                 print(f"[pairs-bt] processed {idx}/{len(pairs)} pairs")
     else:
@@ -687,29 +789,86 @@ async def main(workers_override: int | None = None):
                 pair_cfg, series_all, costs_cfg, s_utc, e_utc, flatten_cutoff_min, strategy_name
             )
             if summ:
-                summaries.append(summ)
-                ledger_by_pair[summ["pair"]] = rows or []
-            if rows:
-                ledger.extend(rows)
+                variant = summ.get("variant_id")
+                tfm = int(summ.get("timeframe", summ.get("tf_min", 0)) or 0)
+                tf_variant_summaries[tfm][variant].append(summ)
+                if rows:
+                    tf_variant_ledgers[tfm][variant][summ["pair"]] = rows or []
             if idx % 5 == 0 or idx == len(pairs):
                 print(f"[pairs-bt] processed {idx}/{len(pairs)} pairs")
 
-    if not summaries:
+    if not any(tf_variant_summaries.values()):
         print("[pairs-bt] no summaries generated; exiting without writing output")
         return
 
-    filtered = apply_constraints(summaries, gates)
+    selected_summaries: List[Dict[str, Any]] = []
+    ledger_by_pair: Dict[str, List[Dict[str, Any]]] = {}
+
+    for tfm, variant_map in sorted(tf_variant_summaries.items()):
+        if not variant_map:
+            continue
+        variant_metrics: Dict[Optional[str], Dict[str, Any]] = {}
+        for variant, summaries_list in variant_map.items():
+            if not summaries_list:
+                continue
+            summaries_copy = [copy.deepcopy(s) for s in summaries_list]
+            filtered_variant = apply_constraints(summaries_copy, gates)
+            scored_variant = score_rows(filtered_variant, weights)
+            if scored_variant:
+                score_sum = sum(float(row.get("score") or 0.0) for row in scored_variant)
+                score_avg = score_sum / max(1, len(scored_variant))
+            else:
+                score_avg = float("-inf")
+            variant_metrics[variant] = {
+                "metric": score_avg,
+                "count": len(scored_variant),
+            }
+        if not variant_metrics:
+            continue
+        best_variant = max(
+            variant_metrics.items(), key=lambda item: (item[1]["metric"], item[1]["count"])
+        )[0]
+        best_data = variant_metrics[best_variant]
+        tf_summaries = variant_map.get(best_variant, [])
+        if not tf_summaries:
+            continue
+        selected_summaries.extend(tf_summaries)
+        params_example = _ensure_params_dict((tf_summaries[0] if tf_summaries else {}).get("params"))
+        entry_selected = params_example.get("entry_z")
+        exit_selected = params_example.get("exit_z")
+        stop_selected = params_example.get("stop_z")
+        metric_val = best_data["metric"]
+        metric_msg = f"{metric_val:.3f}" if math.isfinite(metric_val) else "N/A"
+        print(
+            f"[pairs-bt] tf={tfm} best thresholds variant={best_variant or 'default'} "
+            f"entry_z={entry_selected} exit_z={exit_selected} stop_z={stop_selected} "
+            f"(avg score={metric_msg}, candidates={best_data['count']}, leverage=x{LEVERAGE_MULT})"
+        )
+        ledger_slice = tf_variant_ledgers.get(tfm, {}).get(best_variant, {})
+        for pair_key, rows in ledger_slice.items():
+            ledger_by_pair[pair_key] = rows
+
+    if not selected_summaries:
+        print("[pairs-bt] no summaries remained after per-timeframe selection; aborting.")
+        return
+
+    summaries = selected_summaries
+    filtered = apply_constraints([copy.deepcopy(s) for s in summaries], gates)
+    scored = score_rows(filtered, weights)
+
     kept = len(filtered)
     dropped = len(summaries) - kept
     if dropped:
         print(f"[pairs-bt] constraints rejected {dropped} pair configs")
-    scored = score_rows(filtered, weights)
     for idx, row in enumerate(scored, start=1):
         row["rank"] = idx
         row["bucket"] = _bucket_for_dd(row.get("max_dd"), dd_thresholds)
         row["win_rate_pct"] = _win_rate_percent(row)
         row["profit_per_trade"] = _profit_per_trade_value(row)
     ranked_rows = list(scored)
+    ledger: List[Dict[str, Any]] = []
+    for rows in ledger_by_pair.values():
+        ledger.extend(rows)
 
     top_preview = ranked_rows[:5]
     for r in top_preview:
@@ -725,12 +884,14 @@ async def main(workers_override: int | None = None):
         avg_hold = _avg_hold_minutes(summ)
         n_trades = int(summ.get("n_trades", summ.get("trades", 0)) or 0)
         pnl_total = float(summ.get("pnl_total") or 0.0)
+        leverage_val = float(summ.get("leverage") or LEVERAGE_MULT)
         stats = {
             "pnl": pnl_total,
             "n_trades": n_trades,
             "win_rate": win_rate_pct,
             "profit_per_trade": profit_pt,
             "avg_hold_min": avg_hold,
+            "leverage": leverage_val,
         }
         params = _ensure_params_dict(summ.get("params"))
         bucket_val = summ.get("bucket") or _bucket_for_dd(summ.get("max_dd"), dd_thresholds)
@@ -754,6 +915,10 @@ async def main(workers_override: int | None = None):
             "n_trades": n_trades,
             "risk_per_trade": risk_per_trade,
             "flatten_hhmm": summ.get("flatten_hhmm"),
+            "notional": float(summ.get("notional") or 0.0),
+            "notional_per_leg": float(summ.get("notional_per_leg") or 0.0),
+            "base_notional": float(summ.get("base_notional") or 0.0),
+            "leverage": leverage_val,
         }
         trades_rows = ledger_by_pair.get(summ["pair"], [])
         result["trades"] = trades_rows
@@ -765,19 +930,21 @@ async def main(workers_override: int | None = None):
     raw_picks: List[Dict[str, Any]] = []
     for row in ranked_rows:
         wr_pct = row.get("win_rate_pct", _win_rate_percent(row))
-        if wr_pct < 60.0:
+        if wr_pct < 55.0:
             continue
         profit_pt = row.get("profit_per_trade", _profit_per_trade_value(row))
         if profit_pt < min_profit_per_trade:
             continue
         bucket_val = row.get("bucket") or _bucket_for_dd(row.get("max_dd"), dd_thresholds)
         row["bucket"] = bucket_val
+        leverage_val = float(row.get("leverage") or LEVERAGE_MULT)
         stats_block = {
             "pnl": float(row.get("pnl_total") or 0.0),
             "n_trades": int(row.get("n_trades", 0) or 0),
             "win_rate": wr_pct,
             "profit_per_trade": profit_pt,
             "avg_hold_min": _avg_hold_minutes(row),
+            "leverage": leverage_val,
         }
         pick = {
             "symbol": str(row.get("symbol") or ""),
@@ -792,6 +959,10 @@ async def main(workers_override: int | None = None):
             "leg_x": row.get("leg_x"),
             "leg_y": row.get("leg_y"),
             "avg_hold_min": _avg_hold_minutes(row),
+            "notional": float(row.get("notional") or 0.0),
+            "notional_per_leg": float(row.get("notional_per_leg") or 0.0),
+            "base_notional": float(row.get("base_notional") or 0.0),
+            "leverage": leverage_val,
         }
         raw_picks.append(pick)
 

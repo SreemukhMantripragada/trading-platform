@@ -286,6 +286,10 @@ def write_next_day_yaml(out_path: str,
         wr  = float(stats.get("win_rate", 0.0) or 0.0)
         ppt = float(stats.get("profit_per_trade", (pnl / ntr) if ntr > 0 else 0.0))
         hold = float(stats.get("avg_hold_min", 0.0) or 0.0)
+        notional = r.get("notional")
+        base_notional = r.get("base_notional")
+        notional_per_leg = r.get("notional_per_leg")
+        leverage = r.get("leverage")
         row = {
             "symbol": str(r.get("symbol")),
             "strategy": str(r.get("strategy")),
@@ -303,6 +307,26 @@ def write_next_day_yaml(out_path: str,
                 "avg_hold_min": round(hold, 4),
             }
         }
+        if notional is not None:
+            try:
+                row["notional"] = float(notional)
+            except Exception:
+                pass
+        if base_notional is not None:
+            try:
+                row["base_notional"] = float(base_notional)
+            except Exception:
+                pass
+        if notional_per_leg is not None:
+            try:
+                row["notional_per_leg"] = float(notional_per_leg)
+            except Exception:
+                pass
+        if leverage is not None:
+            try:
+                row["leverage"] = float(leverage)
+            except Exception:
+                pass
         doc["selections"].append(row)
 
     if budget_buckets:

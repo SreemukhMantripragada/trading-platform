@@ -9,267 +9,192 @@
     "panels": [
       {
         "type": "row",
-        "title": "Ingestion",
+        "title": "Session Overview",
         "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
         "collapsed": false,
         "id": 1
       },
       {
         "type": "stat",
-        "title": "Tick Rate (1m)",
+        "title": "Open Pairs",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 1, "w": 8, "h": 5 },
+        "gridPos": { "x": 0, "y": 1, "w": 6, "h": 5 },
         "id": 2,
+        "fieldConfig": { "defaults": { "decimals": 0 }, "overrides": [] },
         "targets": [
-          { "expr": "sum(rate(zerodha_ticks_received_total[1m]))", "refId": "A" }
+          { "expr": "pairs_executor_open_pairs", "refId": "A" }
         ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Tick Latency p95",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 8, "y": 1, "w": 8, "h": 5 },
-        "id": 3,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(zerodha_tick_latency_seconds_bucket[5m])) by (le))",
-            "refId": "A"
-          }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Tick Queue Depth",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 16, "y": 1, "w": 8, "h": 5 },
-        "id": 4,
-        "targets": [
-          { "expr": "avg(zerodha_queue_depth)", "refId": "A" }
-        ]
-      },
-      {
-        "type": "row",
-        "title": "Bar Builders",
-        "gridPos": { "x": 0, "y": 6, "w": 24, "h": 1 },
-        "collapsed": false,
-        "id": 5
       },
       {
         "type": "stat",
-        "title": "1s Bars Published (1m)",
+        "title": "Pairs Signals / min",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 7, "w": 8, "h": 5 },
-        "id": 6,
+        "gridPos": { "x": 6, "y": 1, "w": 6, "h": 5 },
+        "id": 3,
+        "fieldConfig": { "defaults": { "decimals": 1 }, "overrides": [] },
         "targets": [
-          { "expr": "sum(rate(bars_1s_published_total[1m]))", "refId": "A" }
+          { "expr": "sum(rate(pairs_signals_total[1m]))", "refId": "A" }
         ]
       },
       {
-        "type": "timeseries",
-        "title": "1s Bar Publish Latency p95",
+        "type": "stat",
+        "title": "Approved Orders / min",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 8, "y": 7, "w": 8, "h": 5 },
-        "id": 7,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+        "gridPos": { "x": 12, "y": 1, "w": 6, "h": 5 },
+        "id": 4,
+        "fieldConfig": { "defaults": { "decimals": 1 }, "overrides": [] },
         "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(bars_1s_publish_latency_seconds_bucket[5m])) by (le))",
-            "refId": "A"
-          }
+          { "expr": "sum(rate(risk_orders_approved_total[1m]))", "refId": "A" }
         ]
       },
       {
-        "type": "timeseries",
-        "title": "Active 1s Bars",
+        "type": "stat",
+        "title": "Budget Used (INR)",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 16, "y": 7, "w": 8, "h": 5 },
-        "id": 8,
+        "gridPos": { "x": 18, "y": 1, "w": 6, "h": 5 },
+        "id": 5,
+        "fieldConfig": { "defaults": { "unit": "currencyINR", "decimals": 0 }, "overrides": [] },
         "targets": [
-          { "expr": "bars_1s_open_symbols", "refId": "A" }
+          { "expr": "sum(budget_used_inr)", "refId": "A" }
         ]
       },
       {
         "type": "row",
-        "title": "Timeframe Aggregator",
-        "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 },
+        "title": "Risk & Budget",
+        "gridPos": { "x": 0, "y": 6, "w": 24, "h": 1 },
+        "collapsed": false,
+        "id": 6
+      },
+      {
+        "type": "bargauge",
+        "title": "Bucket Usage (INR)",
+        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "gridPos": { "x": 0, "y": 7, "w": 12, "h": 7 },
+        "id": 7,
+        "fieldConfig": {
+          "defaults": { "unit": "currencyINR", "max": 0 },
+          "overrides": []
+        },
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "showUnfilled": true
+        },
+        "targets": [
+          { "expr": "budget_used_inr", "legendFormat": "{{bucket}}", "refId": "A" }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Broker Funds",
+        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "gridPos": { "x": 12, "y": 7, "w": 12, "h": 7 },
+        "id": 8,
+        "fieldConfig": { "defaults": { "unit": "currencyINR" }, "overrides": [] },
+        "targets": [
+          {
+            "expr": "risk_manager_tradable_equity_inr",
+            "legendFormat": "Tradable",
+            "refId": "A"
+          },
+          {
+            "expr": "risk_manager_equity_inr",
+            "legendFormat": "Total",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Latency",
+        "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 },
         "collapsed": false,
         "id": 9
       },
       {
         "type": "timeseries",
-        "title": "Multi-timeframe Latency p95",
+        "title": "Pipeline Latency p95",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 13, "w": 12, "h": 6 },
+        "gridPos": { "x": 0, "y": 15, "w": 12, "h": 7 },
         "id": 10,
         "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_3m_seconds_bucket[5m])) by (le))",
-            "legendFormat": "3m",
+            "expr": "histogram_quantile(0.95, sum(rate(zerodha_tick_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Tick → Kafka",
             "refId": "A"
           },
           {
-            "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_5m_seconds_bucket[5m])) by (le))",
-            "legendFormat": "5m",
+            "expr": "histogram_quantile(0.95, sum(rate(pairs_executor_order_publish_lag_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Signal → Order",
             "refId": "B"
           },
           {
-            "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_15m_seconds_bucket[5m])) by (le))",
-            "legendFormat": "15m",
+            "expr": "histogram_quantile(0.95, sum(rate(risk_manager_order_lag_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Risk Decision",
             "refId": "C"
           }
         ]
       },
       {
         "type": "timeseries",
-        "title": "Active Aggregation Windows",
+        "title": "Processing Time p95",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 12, "y": 13, "w": 12, "h": 6 },
+        "gridPos": { "x": 12, "y": 15, "w": 12, "h": 7 },
         "id": 11,
+        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
         "targets": [
-          { "expr": "bar_agg_active_windows", "refId": "A", "legendFormat": "{{tf}}m" }
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(pairs_executor_process_seconds_bucket[5m])) by (le, action))",
+            "legendFormat": "{{action}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(paper_matcher_process_seconds_bucket[5m])) by (le, side))",
+            "legendFormat": "Paper {{side}}",
+            "refId": "B"
+          }
         ]
       },
       {
         "type": "row",
-        "title": "Pair Watch",
-        "gridPos": { "x": 0, "y": 19, "w": 24, "h": 1 },
+        "title": "Flows",
+        "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 },
         "collapsed": false,
         "id": 12
       },
       {
         "type": "timeseries",
-        "title": "Pair Watch Bar Staleness (max)",
+        "title": "Tick Rate",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+        "gridPos": { "x": 0, "y": 23, "w": 12, "h": 6 },
         "id": 13,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+        "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
         "targets": [
-          { "expr": "max by (pair_symbol, tf) (pairwatch_last_bar_staleness_seconds)", "refId": "A" }
+          {
+            "expr": "sum(rate(zerodha_ticks_received_total[1m]))",
+            "legendFormat": "Ticks",
+            "refId": "A"
+          }
         ]
       },
       {
-        "type": "stat",
-        "title": "Pairs Ready",
+        "type": "timeseries",
+        "title": "Signals & Orders / min",
         "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+        "gridPos": { "x": 12, "y": 23, "w": 12, "h": 6 },
         "id": 14,
-        "targets": [
-          { "expr": "sum(pairwatch_pair_ready)", "refId": "A" }
-        ]
-      },
-      {
-        "type": "row",
-        "title": "Execution Pipeline",
-        "gridPos": { "x": 0, "y": 26, "w": 24, "h": 1 },
-        "collapsed": false,
-        "id": 15
-      },
-      {
-        "type": "timeseries",
-        "title": "Executor Process Time p95",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 27, "w": 8, "h": 6 },
-        "id": 16,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+        "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(pairs_executor_process_seconds_bucket[5m])) by (le))",
+            "expr": "sum(rate(pairs_signals_total[1m]))",
+            "legendFormat": "Signals",
             "refId": "A"
-          }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Signal → Order Lag p95",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 8, "y": 27, "w": 8, "h": 6 },
-        "id": 17,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
+          },
           {
-            "expr": "histogram_quantile(0.95, sum(rate(pairs_executor_order_publish_lag_seconds_bucket[5m])) by (le))",
-            "refId": "A"
-          }
-        ]
-      },
-      {
-        "type": "stat",
-        "title": "Open Pairs",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 16, "y": 27, "w": 8, "h": 6 },
-        "id": 18,
-        "targets": [
-          { "expr": "pairs_executor_open_pairs", "refId": "A" }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Risk Manager Decision Time",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 33, "w": 12, "h": 6 },
-        "id": 19,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(risk_manager_process_seconds_bucket[5m])) by (le, result))",
-            "refId": "A",
-            "legendFormat": "{{result}}"
-          }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Risk Manager Order Lag p95",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 12, "y": 33, "w": 12, "h": 6 },
-        "id": 20,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(risk_manager_order_lag_seconds_bucket[5m])) by (le))",
-            "refId": "A"
-          }
-        ]
-      },
-      {
-        "type": "stat",
-        "title": "Tradable Equity",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 39, "w": 12, "h": 5 },
-        "id": 21,
-        "fieldConfig": { "defaults": { "unit": "currencyINR" }, "overrides": [] },
-        "targets": [
-          { "expr": "risk_manager_tradable_equity_inr", "refId": "A" }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Paper Matcher Order Lag p95",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 12, "y": 39, "w": 12, "h": 6 },
-        "id": 22,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(paper_matcher_order_lag_seconds_bucket[5m])) by (le))",
-            "refId": "A"
-          }
-        ]
-      },
-      {
-        "type": "timeseries",
-        "title": "Paper Matcher Process Time",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
-        "gridPos": { "x": 0, "y": 44, "w": 12, "h": 6 },
-        "id": 23,
-        "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, sum(rate(paper_matcher_process_seconds_bucket[5m])) by (le, side))",
-            "refId": "A",
-            "legendFormat": "{{side}}"
+            "expr": "sum(rate(pairs_orders_emitted_total[1m]))",
+            "legendFormat": "Orders",
+            "refId": "B"
           }
         ]
       }

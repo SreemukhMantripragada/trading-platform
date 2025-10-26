@@ -1,14 +1,14 @@
 # configs/risk_budget.yaml
-total_cash_inr: 100000             # starting capital reference; runner will also query broker cash
-holdback_fraction: 0.20            # always keep 20% un-deployed
+total_cash_inr: 450000             # starting capital reference; runner will also query broker cash
+holdback_fraction: 0.1             # always keep 10% un-deployed
 
 buckets:
   LOW:
     split: 1.00
-    max_per_trade: 25000
+    max_per_trade: 100000
   MED:
     split: 0.00
-    max_per_trade: 20000
+    max_per_trade: 100000
   HIGH:
     split: 0.00
-    max_per_trade: 10000
+    max_per_trade: 100000

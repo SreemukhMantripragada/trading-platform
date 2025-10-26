@@ -1,36 +1,32 @@
 #!/usr/bin/env python3
 """
-orchestrator/pairs_paper_entry.py
+orchestrator/pairs_live_entry.py
 
-Single entry point to launch the pairs paper-trading stack:
-  - Zerodha websocket ingestor
-  - 1-second bar builder
-  - 1m→multi timeframe bar aggregator
-  - pair watcher (with hydration)
-  - pairs executor (writes to OMS + state file)
-  - risk manager v2
-  - paper gateway matcher
+Launches the live pairs trading stack end-to-end:
+  - Zerodha websocket → Kafka ticks
+  - 1-second bar builder and multi-timeframe aggregator
+  - Pair-watch producer reading configs/pairs_next_day.yaml
+  - Pairs executor → risk manager → budget guard
+  - Zerodha gateway (orders.allowed → broker) + poller
 
-The script keeps subprocesses running, tails them into per-service log files,
-and propagates termination (Ctrl+C) to all children. If any child exits
-unexpectedly, the runner shuts everything down and reports the failing service.
+Mirrors orchestrator/pairs_paper_entry.py but swaps the paper matcher for
+the live zerodha gateway and order budget guard.
 """
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
+import shutil
 import signal
 import sys
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple, IO
-import contextlib
-import platform
+from typing import Dict, IO, List, Tuple
 
 try:
-    from dotenv import load_dotenv  
-except ImportError as exc:  
+    from dotenv import load_dotenv  # type: ignore
+except ImportError as exc:  # pragma: no cover
     raise SystemExit("python-dotenv is required. Install with `pip install python-dotenv`.") from exc
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -48,18 +44,22 @@ SERVICE_CMDS = [
     ("pair-watch", [PYTHON_BIN, "compute/pair_watch_producer.py"]),
     ("pairs-exec", [PYTHON_BIN, "execution/pairs_executor.py"]),
     ("risk-manager", [PYTHON_BIN, "risk/manager_v2.py"]),
-    ("paper-matcher", [PYTHON_BIN, "execution/paper_gateway_matcher.py"]),
+    ("budget-guard", [PYTHON_BIN, "risk/order_budget_guard.py"]),
+    ("zerodha-gateway", [PYTHON_BIN, "execution/zerodha_gateway.py"]),
+    ("zerodha-poller", [PYTHON_BIN, "execution/zerodha_poller.py"]),
 ]
 
 SERVICE_METRICS_PORT = {
     "zerodha-ws": "8111",
     "bar-builder-1s": "8112",
-    "bar-agg-1m": "8113",
-    "bar-agg-multi": "8114",
-    "pair-watch": "8115",
-    "pairs-exec": "8116",
-    "risk-manager": "8117",
-    "paper-matcher": "8118",
+    "bar-agg-1m": "8118",
+    "bar-agg-multi": "8113",
+    "pair-watch": "8114",
+    "pairs-exec": "8115",
+    "risk-manager": "8116",
+    "budget-guard": "8123",
+    "zerodha-gateway": "8017",
+    "zerodha-poller": "8018",
 }
 
 
@@ -70,18 +70,14 @@ async def spawn_service(
     now = datetime.now(timezone.utc)
     log_path = log_dir / f"{now:%Y%m%d_%H%M%S}_{name}.log"
     log_file = log_path.open("a", encoding="utf-8")
-    log_file.write(f"[entry] starting {name}: {' '.join(cmd)}\n")
+    log_file.write(f"[live-entry] starting {name}: {' '.join(cmd)}\n")
     log_file.flush()
-    # proc = await asyncio.create_subprocess_exec(
-    #     *cmd, stdout=log_file, stderr=asyncio.subprocess.STDOUT, env=env, cwd=str(ROOT_DIR)
-    # )
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=log_file,
         stderr=asyncio.subprocess.STDOUT,
         env=env,
         cwd=str(ROOT_DIR),
-        start_new_session=True, 
     )
     return proc, log_path, log_file
 
@@ -97,7 +93,7 @@ async def main() -> None:
         base_env["PATH"] = f"{venv_bin}{os.pathsep}{base_env.get('PATH','')}"
         base_env.setdefault("VIRTUAL_ENV", str(venv_bin.parent))
 
-    base_env.setdefault("LIVE_TRADING", "0")
+    base_env.setdefault("LIVE_TRADING", "1")
     base_env.setdefault("AUTO_SWITCH_TO_LIVE", "0")
     base_env.setdefault("PAIR_HYDRATE_SOURCE", "kite")
     base_env.setdefault("PAIRS_STATE_FILE", "data/runtime/pairs_state.json")
@@ -113,11 +109,9 @@ async def main() -> None:
 
     services = list(SERVICE_CMDS)
 
-    log_root = Path(os.getenv("PAIRS_LOG_DIR", "runs/logs"))
-    if log_root.exists():
-        shutil.rmtree(log_root, ignore_errors=True)
+    log_root = Path(os.getenv("PAIRS_LIVE_LOG_DIR", "runs/logs_live"))
     now = datetime.now(timezone.utc)
-    run_log_dir = log_root / f"pairs_{now:%Y%m%d_%H%M%S}"
+    run_log_dir = log_root / f"pairs_live_{now:%Y%m%d_%H%M%S}"
 
     procs: Dict[str, asyncio.subprocess.Process] = {}
     logs: Dict[str, IO[str]] = {}
@@ -133,90 +127,68 @@ async def main() -> None:
                 env["METRICS_PORT"] = port
                 if name == "pair-watch":
                     env["PAIRWATCH_METRICS_PORT"] = port
+
+            if name == "budget-guard":
+                env.setdefault("IN_TOPIC", "orders.sized")
+                env.setdefault("OUT_TOPIC", "orders.allowed")
+            elif name == "zerodha-gateway":
+                env.setdefault("IN_TOPIC", "orders.allowed")
+                env.setdefault("FILL_TOPIC", "fills")
+                env.setdefault("DRY_RUN", "0")
+            elif name == "zerodha-poller":
+                env.setdefault("FILL_TOPIC", "fills")
+                env.setdefault("DRY_RUN", "0")
+
             proc, log_path, handle = await spawn_service(name, cmd, env, run_log_dir)
             procs[name] = proc
             logs[name] = handle
             log_paths[name] = log_path
-            print(f"[entry] {name:<15} → pid={proc.pid} log={log_path}")
+            print(f"[live-entry] {name:<16} → pid={proc.pid} log={log_path}")
 
     async def monitor(name: str, proc: asyncio.subprocess.Process):
         rc = await proc.wait()
-        print(f"[entry] {name} exited with code {rc}")
+        print(f"[live-entry] {name} exited with code {rc}")
         log_path = log_paths.get(name)
         if log_path and log_path.exists():
             try:
                 lines = log_path.read_text().splitlines()
                 tail = "\n".join(lines[-10:]) if lines else ""
                 if tail:
-                    print(f"[entry] --- last log lines for {name} ---\n{tail}\n[entry] --- end log ---")
+                    print(f"[live-entry] --- last log lines for {name} ---\n{tail}\n[live-entry] --- end log ---")
             except Exception as exc:
-                print(f"[entry] unable to read log {log_path}: {exc}")
+                print(f"[live-entry] unable to read log {log_path}: {exc}")
         stop_event.set()
 
     async def shutdown():
         if not procs:
             return
-        print("[entry] shutting down services…")
-        is_posix = (os.name == "posix")
-
-        # Graceful SIGTERM to process groups
+        print("[live-entry] shutting down services…")
         for name, proc in procs.items():
-            if proc.returncode is not None:
-                continue
-            try:
-                if is_posix:
-                    # kill the entire process group
-                    os.killpg(proc.pid, signal.SIGTERM)
-                else:
-                    proc.terminate()
-            except ProcessLookupError:
-                pass
-            except Exception as exc:
-                print(f"[entry] warn: failed to send TERM to {name}: {exc}")
-
+            if proc.returncode is None:
+                proc.terminate()
         await asyncio.sleep(2)
-
-        # Force kill any survivors
         for name, proc in procs.items():
-            if proc.returncode is not None:
-                continue
-            print(f"[entry] force-killing {name}")
-            try:
-                if is_posix:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                else:
-                    proc.kill()
-            except ProcessLookupError:
-                pass
-            except Exception as exc:
-                print(f"[entry] warn: failed to KILL {name}: {exc}")
-
-        # Wait for cleanup
+            if proc.returncode is None:
+                print(f"[live-entry] force-killing {name}")
+                proc.kill()
         for name, proc in procs.items():
-            try:
-                await proc.wait()
-            except Exception:
-                pass
-
+            await proc.wait()
         for handle in logs.values():
-            try:
+            with contextlib.suppress(Exception):
                 handle.close()
-            except Exception:
-                pass
-
 
     await launch_all()
     loop = asyncio.get_running_loop()
 
     def _signal_handler(signame: str):
-        print(f"[entry] received {signame}; stopping…")
+        print(f"[live-entry] received {signame}; stopping…")
         stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, _signal_handler, sig.name)
         except NotImplementedError:
-            pass  # Windows
+            pass
 
     for name, proc in procs.items():
         tasks.append(asyncio.create_task(monitor(name, proc)))
@@ -227,7 +199,7 @@ async def main() -> None:
         t.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await t
-    print("[entry] all services stopped.")
+    print("[live-entry] all services stopped.")
 
 
 if __name__ == "__main__":
