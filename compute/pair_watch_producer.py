@@ -436,6 +436,15 @@ class PairEngine:
             self.z_history.append((ts, z))
         if z is None or not self.ready():
             return None
+        flatten_cutoff = self.flatten_cutoff_min
+        if flatten_cutoff is not None:
+            try:
+                current_min = ist_minutes(ts)
+            except Exception:
+                current_min = None
+            beyond_flatten = current_min is not None and current_min >= flatten_cutoff
+        else:
+            beyond_flatten = False
         entry_z = self.spec.entry_z
         self._refresh_pending_cross(prev_z, z, entry_z, beyond_flatten)
 
