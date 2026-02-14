@@ -6,7 +6,7 @@ Zerodha KiteTicker → Kafka 'ticks' topic.
 - Validates shape; pushes minimal tick schema (symbol,event_ts,ltp,vol).
 
 Run:
-  KAFKA_BROKER=localhost:9092 python ingestion/zerodha_ws_v2.py
+  KAFKA_BROKER=localhost:9092 python ingestion/zerodha_ws.py
 """
 import os, csv, json, time, queue, threading, asyncio, ujson as ujson
 from datetime import datetime, timezone

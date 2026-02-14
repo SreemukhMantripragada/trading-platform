@@ -1,5 +1,5 @@
 
-.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi pairs-pipeline
+.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi pairs-pipeline metrics-list metrics-sync
 .DEFAULT_GOAL := help
 
 POSTGRES_HOST ?= localhost
@@ -13,6 +13,7 @@ PAIRS_REMOTE_PATH ?= ~/trading-platform/configs/pairs_next_day.yaml
 PAIRS_REMOTE_KEY  ?= $(shell pwd)/trading-ec2-key.pem
 
 up: 
+	python3 tools/metrics_catalog.py --check --write-prom-targets infra/prometheus/targets_apps.json
 	cd infra && docker compose up -d && docker compose ps
 down: 
 	cd infra && docker compose down 
@@ -33,6 +34,16 @@ matcher-build:
 
 matcher-run:
 	./execution/cpp/matcher/build/matcher
+
+# Build Go ingestion/aggregation binaries in a container (no host Go needed)
+.PHONY: go-build
+go-build:
+	docker build -f infra/docker/go-builder.Dockerfile -t trading-go-builder . && \
+	docker create --name trading-go-builder-temp trading-go-builder && \
+	docker cp trading-go-builder-temp:/out/ws_bridge go/bin/ws_bridge && \
+	docker cp trading-go-builder-temp:/out/bar_builder_1s go/bin/bar_builder_1s && \
+	docker cp trading-go-builder-temp:/out/bar_aggregator_multi go/bin/bar_aggregator_multi && \
+	docker rm trading-go-builder-temp
 
 strat-1m:
 	. .venv/bin/activate && TF=1m IN_TOPIC=bars.1m KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
@@ -65,11 +76,28 @@ agg-multi:
 	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
 	python compute/bar_aggregator_1m_to_multi.py
 
+# ---- Swappable ingress/agg hooks (run supervisor with overrides) ----
+.PHONY: ingest-go bars1s-go baragg-go
+ingest-go:
+	@echo "[override] zerodha-ws -> ${INGEST_CMD:-./go/bin/ws_bridge}" && \
+	SERVICE_CMD_ZERODHA_WS=${INGEST_CMD:-./go/bin/ws_bridge} INGEST_CMD=${INGEST_CMD:-./go/bin/ws_bridge} \
+	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
+
+bars1s-go:
+	@echo "[override] bar-builder-1s -> ${BARS1S_CMD:-./go/bin/bar_builder_1s}" && \
+	SERVICE_CMD_BAR_BUILDER_1S=${BARS1S_CMD:-./go/bin/bar_builder_1s} BARS1S_CMD=${BARS1S_CMD:-./go/bin/bar_builder_1s} \
+	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
+
+baragg-go:
+	@echo "[override] bar-aggregator -> ${BARAGG_CMD:-./go/bin/bar_aggregator_multi}" && \
+	SERVICE_CMD_BAR_AGGREGATOR=${BARAGG_CMD:-./go/bin/bar_aggregator_multi} BARAGG_CMD=${BARAGG_CMD:-./go/bin/bar_aggregator_multi} \
+	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
+
 .PHONY: ws recon-v2 pairs-make pairs-monitor bt-ui
 ws:
-	. .venv/bin/activate && python ingestion/zerodha_ws_v2.py
+	. .venv/bin/activate && python ingestion/zerodha_ws.py
 recon-v2:
-	. .venv/bin/activate && python monitoring/daily_recon_v2.py --date ${D}
+	. .venv/bin/activate && python monitoring/daily_recon.py --date ${D}
 pairs-make:
 	. .venv/bin/activate && python research/pairs_maker.py --symbols ${SYMS} --days ${DAYS:-60}
 pairs-monitor:
@@ -96,13 +124,13 @@ eod:
 
 exporter-oms:
 	. .venv/bin/activate && \
-	METRICS_PORT=8017 \
+	METRICS_PORT=8018 \
 	POSTGRES_HOST=${POSTGRES_HOST} POSTGRES_PORT=${POSTGRES_PORT} POSTGRES_DB=${POSTGRES_DB} POSTGRES_USER=${POSTGRES_USER} POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
 	python monitoring/oms_lifecycle_exporter.py
 
 # Exporters
 exporter-dd:
-	. .venv/bin/activate && METRICS_PORT=8018 python monitoring/risk_drawdown_exporter.py
+	. .venv/bin/activate && METRICS_PORT=8019 python monitoring/risk_drawdown_exporter.py
 
 # Kill broadcast + cancel listener
 kill-all:
@@ -118,7 +146,7 @@ cancel-listener:
 shadow-on:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} IN_TOPIC=orders OUT_TOPIC=orders.paper python execution/shadow_mirror.py
 pairs-exp:
-	. .venv/bin/activate && METRICS_PORT=8019 python monitoring/pairs_exporter.py
+	. .venv/bin/activate && METRICS_PORT=8020 python monitoring/pairs_exporter.py
 
 merge-hist:
 	. .venv/bin/activate && python ingestion/merge_hist_daily.py
@@ -147,7 +175,7 @@ grafana-import-pairs:
 
 pairs-exec:
 	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=pairs.signals OUT_TOPIC=orders METRICS_PORT=8020 \
+	IN_TOPIC=pairs.signals OUT_TOPIC=orders METRICS_PORT=8115 \
 	RISK_BUDGET=configs/risk_budget.runtime.yaml \
 	python execution/pairs_executor.py
 
@@ -163,7 +191,7 @@ grafana-import-pairs-pnl:
 		--data-binary @infra/grafana/dashboards/pairs_pnl.json | jq .
 
 oms-health:
-	. .venv/bin/activate && METRICS_PORT=8016 python execution/oms_health_exporter.py
+	. .venv/bin/activate && METRICS_PORT=8026 python execution/oms_health_exporter.py
 
 recon-broker:
 	. .venv/bin/activate && METRICS_PORT=8021 ENFORCE=0 QTY_TOL=0 BREACH_SYMS=0 KILL_QTY_TOL=0 \
@@ -265,3 +293,9 @@ kite-capital:
 
 kite-clear-token:
 	rm -f ingestion/auth/token.json; echo "🗑  deleted ingestion/auth/token.json"
+# Metrics registry helpers
+metrics-list:
+	python3 tools/metrics_catalog.py --check
+
+metrics-sync:
+	python3 tools/metrics_catalog.py --check --write-prom-targets infra/prometheus/targets_apps.json

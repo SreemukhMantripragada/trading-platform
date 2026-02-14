@@ -14,7 +14,7 @@ Metrics:
 
 Run:
   POSTGRES_HOST=localhost POSTGRES_PORT=5432 POSTGRES_DB=trading POSTGRES_USER=trader POSTGRES_PASSWORD=trader \
-  METRICS_PORT=8017 python monitoring/oms_lifecycle_exporter.py
+  METRICS_PORT=8018 python monitoring/oms_lifecycle_exporter.py
 """
 from __future__ import annotations
 import os, asyncio, asyncpg
@@ -25,7 +25,7 @@ PG_PORT=int(os.getenv("POSTGRES_PORT","5432"))
 PG_DB=os.getenv("POSTGRES_DB","trading")
 PG_USER=os.getenv("POSTGRES_USER","trader")
 PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
-METRICS_PORT=int(os.getenv("METRICS_PORT","8017"))
+METRICS_PORT=int(os.getenv("METRICS_PORT","8018"))
 
 ORDERS_BY_STATUS = Gauge("oms_orders_by_status", "Orders by current status", ["status"])
 OPEN_NOW         = Gauge("oms_open_orders_now", "Open/working orders now")

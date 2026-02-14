@@ -12,16 +12,30 @@ env:
 
 services:
   - name: zerodha-ws
+    # override with env SERVICE_CMD_ZERODHA_WS or INGEST_CMD, e.g. "./go/bin/ws_bridge"
     cmd: "{{python}} ingestion/zerodha_ws.py"
+    env:
+      METRICS_PORT: "8111"
 
   - name: bar-builder-1s
+    # override with SERVICE_CMD_BAR_BUILDER_1S or BARS1S_CMD
     cmd: "{{python}} compute/bar_builder_1s.py"
+    env:
+      METRICS_PORT: "8112"
 
   - name: bar-aggregator
+    # override with SERVICE_CMD_BAR_AGGREGATOR or BARAGG_CMD
     cmd: "{{python}} compute/bar_aggregator_1m_to_multi.py"
+    env:
+      METRICS_PORT: "8113"
 
   - name: pair-watch
     cmd: "{{python}} compute/pair_watch_producer.py"
+    env:
+      METRICS_PORT: "8114"
+      PAIRWATCH_METRICS_PORT: "8114"
 
   - name: pairs-executor
     cmd: "{{python}} execution/pairs_executor.py"
+    env:
+      METRICS_PORT: "8115"

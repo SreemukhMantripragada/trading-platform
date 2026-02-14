@@ -32,6 +32,10 @@ try:
     from dotenv import load_dotenv  
 except ImportError as exc:  
     raise SystemExit("python-dotenv is required. Install with `pip install python-dotenv`.") from exc
+try:
+    from orchestrator.metrics_ports import metrics_port_for, metrics_env_key_for
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from metrics_ports import metrics_port_for, metrics_env_key_for
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 VENV_PY = ROOT_DIR / ".venv" / "bin" / "python"
@@ -50,18 +54,6 @@ SERVICE_CMDS = [
     ("risk-manager", [PYTHON_BIN, "risk/manager_v2.py"]),
     ("paper-matcher", [PYTHON_BIN, "execution/paper_gateway_matcher.py"]),
 ]
-
-SERVICE_METRICS_PORT = {
-    "zerodha-ws": "8111",
-    "bar-builder-1s": "8112",
-    "bar-agg-1m": "8113",
-    "bar-agg-multi": "8114",
-    "pair-watch": "8115",
-    "pairs-exec": "8116",
-    "risk-manager": "8117",
-    "paper-matcher": "8118",
-}
-
 
 async def spawn_service(
     name: str, cmd: List[str], env: Dict[str, str], log_dir: Path
@@ -144,11 +136,11 @@ async def main() -> None:
     async def launch_all():
         for name, cmd in services:
             env = base_env.copy()
-            port = SERVICE_METRICS_PORT.get(name)
+            port = metrics_port_for(name)
             if port:
                 env["METRICS_PORT"] = port
-                if name == "pair-watch":
-                    env["PAIRWATCH_METRICS_PORT"] = port
+                env_key = metrics_env_key_for(name)
+                env[env_key] = port
             proc, log_path, handle = await spawn_service(name, cmd, env, run_log_dir)
             procs[name] = proc
             logs[name] = handle

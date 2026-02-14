@@ -13,7 +13,7 @@
 | `monitoring/oms_lifecycle_exporter.py` | Tracks state transitions of orders across the OMS. | HTTP `/metrics` |
 | `monitoring/risk_drawdown_exporter.py` | Publishes drawdown and exposure gauges per bucket. | HTTP `/metrics` |
 | `monitoring/pairs_exporter.py` | Exposes pairs spread metrics for Grafana dashboards. | HTTP `/metrics` |
-| `monitoring/daily_recon_v2.py` | After-close reconciliation of broker bars vs. internal bars. | Postgres `bars_1m_recon`, logs |
+| `monitoring/daily_recon.py` | After-close reconciliation of broker bars vs. internal bars. | Postgres `bars_1m_recon`, logs |
 | `monitoring/recon_autoheal.py` | Attempts to backfill/replay bars that fail reconciliation. | Kafka replays, Postgres fixes |
 | `monitoring/process_supervisor.py` | Sample supervisor script that watches process heartbeats. | CLI / Prometheus |
 
@@ -40,7 +40,12 @@ The pairs paper stack now exposes consistent Prometheus metrics for every hop in
 Each process exposes throughput counters plus latency histograms (tick ingestion, bar publish, pair decisions, risk approvals, matcher fills) and gauges for backlog/ready-state. The orchestrator (`orchestrator/pairs_paper_entry.py`) injects the port assignments automatically.
 
 ## Infrastructure
+- Metrics endpoint source-of-truth: `configs/metrics_endpoints.json`.
+- Design notes for this setup: `docs/metrics_endpoints.md`.
+- Render Prometheus file_sd targets from the registry: `make metrics-sync`.
+- Print a human-readable endpoint map: `make metrics-list`.
 - Prometheus configuration lives in `infra/prometheus/prometheus.yml`.
+- Prometheus target list is generated in `infra/prometheus/targets_apps.json`.
 - Grafana dashboards and provisioning under `infra/grafana/`.
 - `infra/grafana/dashboards/pairs_trading_observability.json` contains the end-to-end latency dashboard wired to the metrics above.
 - Kafka exporter (`kafka-exporter`) and Kafka UI are launched via `make up`.
@@ -48,7 +53,7 @@ Each process exposes throughput counters plus latency histograms (tick ingestion
 
 ## Operating Playbook
 - Run `make doctor` for a quick health check (Kafka connectivity, Postgres, process liveness).
-- Use `monitoring/daily_recon_v2.py --date YYYY-MM-DD` after each session; investigate non-zero discrepancies in `bars_1m_recon`.
+- Use `monitoring/daily_recon.py --date YYYY-MM-DD` after each session; investigate non-zero discrepancies in `bars_1m_recon`.
 - Prometheus targets: ensure exporters are reachable on `127.0.0.1:<PORT>` after launching via Makefile.
 - Leverage `monitoring/process_supervisor.py` in tmux/daemon contexts to auto-restart critical services.
 

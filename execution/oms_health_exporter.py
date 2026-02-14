@@ -11,7 +11,7 @@ Assumptions:
 - orders(client_order_id, created_at timestamptz, status, reason text)
 - fills(client_order_id, ts timestamptz)
 
-ENV: POSTGRES_*, METRICS_PORT=8016
+ENV: POSTGRES_*, METRICS_PORT=8026
 """
 from __future__ import annotations
 import os, asyncio, asyncpg, re
@@ -20,7 +20,7 @@ from prometheus_client import start_http_server, Gauge, Histogram, Counter
 
 PG_HOST=os.getenv("POSTGRES_HOST","localhost"); PG_PORT=int(os.getenv("POSTGRES_PORT","5432"))
 PG_DB=os.getenv("POSTGRES_DB","trading"); PG_USER=os.getenv("POSTGRES_USER","trader"); PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
-PORT=int(os.getenv("METRICS_PORT","8016"))
+PORT=int(os.getenv("METRICS_PORT","8026"))
 
 REJECT = Gauge("oms_reject_rate_24h", "Reject rate over last 24h")
 LAT    = Histogram("oms_time_to_fill_seconds", "Time from order create to first fill", buckets=(0.2,0.5,1,2,3,5,8,13,21,34))

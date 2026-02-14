@@ -10,7 +10,7 @@ Metrics
 - pair_exits_total{pair_id}
 
 Run:
-  KAFKA_BROKER=localhost:9092 METRICS_PORT=8019 python monitoring/pairs_exporter.py
+  KAFKA_BROKER=localhost:9092 METRICS_PORT=8020 python monitoring/pairs_exporter.py
 """
 from __future__ import annotations
 import os, asyncio, math, ujson as json
@@ -20,7 +20,7 @@ from prometheus_client import start_http_server, Gauge, Counter
 BROKER=os.getenv("KAFKA_BROKER","localhost:9092")
 TOPIC=os.getenv("IN_TOPIC","pairs.signals")
 GROUP=os.getenv("GROUP_ID","pairs_exporter")
-PORT=int(os.getenv("METRICS_PORT","8019"))
+PORT=int(os.getenv("METRICS_PORT","8020"))
 
 Z = Gauge("pair_zscore", "Latest z-score per pair", ["pair_id","a","b"])
 S = Gauge("pair_spread", "Latest spread (logA - beta*logB)", ["pair_id"])

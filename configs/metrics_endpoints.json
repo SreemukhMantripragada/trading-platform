@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "host": "host.docker.internal",
+  "metrics_path": "/metrics",
+  "services": [
+    {
+      "service": "zerodha-ws",
+      "aliases": [],
+      "port": 8111,
+      "component": "ingestion",
+      "language": "python",
+      "entrypoint": "ingestion/zerodha_ws.py",
+      "profiles": ["default", "pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "bar-builder-1s",
+      "aliases": [],
+      "port": 8112,
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_builder_1s.py",
+      "profiles": ["default", "pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "bar-aggregator",
+      "aliases": ["bar-agg-multi"],
+      "port": 8113,
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_aggregator_1m_to_multi.py",
+      "profiles": ["default", "pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "bar-agg-1m",
+      "aliases": [],
+      "port": 8118,
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_aggregator_1m.py",
+      "profiles": ["pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "pair-watch",
+      "aliases": [],
+      "port": 8114,
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/pair_watch_producer.py",
+      "env_key": "PAIRWATCH_METRICS_PORT",
+      "profiles": ["default", "pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "pairs-executor",
+      "aliases": ["pairs-exec"],
+      "port": 8115,
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/pairs_executor.py",
+      "profiles": ["default", "pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "risk-manager",
+      "aliases": [],
+      "port": 8116,
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/manager_v2.py",
+      "profiles": ["pairs-paper", "pairs-live"]
+    },
+    {
+      "service": "paper-matcher",
+      "aliases": [],
+      "port": 8117,
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/paper_gateway_matcher.py",
+      "profiles": ["pairs-paper"]
+    },
+    {
+      "service": "budget-guard",
+      "aliases": [],
+      "port": 8023,
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/order_budget_guard.py",
+      "profiles": ["pairs-live", "manual"]
+    },
+    {
+      "service": "zerodha-gateway",
+      "aliases": [],
+      "port": 8017,
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/zerodha_gateway.py",
+      "profiles": ["live", "manual"]
+    },
+    {
+      "service": "runner-modular",
+      "aliases": [],
+      "port": 8007,
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_modular.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "runner-ensemble",
+      "aliases": [],
+      "port": 8009,
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_ensemble.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "runner-unified",
+      "aliases": [],
+      "port": 8011,
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_unified.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "gateway-oms-exporter",
+      "aliases": [],
+      "port": 8016,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/gateway_oms_exporter.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "oms-lifecycle-exporter",
+      "aliases": [],
+      "port": 8018,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/oms_lifecycle_exporter.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "risk-drawdown-exporter",
+      "aliases": [],
+      "port": 8019,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/risk_drawdown_exporter.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "pairs-exporter",
+      "aliases": [],
+      "port": 8020,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/pairs_exporter.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "broker-reconciler",
+      "aliases": [],
+      "port": 8021,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/broker_reconciler.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "budget-source-exporter",
+      "aliases": ["budget-source"],
+      "port": 8022,
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/budget_source.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "accounting-pnl-exporter",
+      "aliases": [],
+      "port": 8024,
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/accounting_pnl.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "oms-exporter",
+      "aliases": [],
+      "port": 8025,
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/oms_exporter.py",
+      "profiles": ["manual"]
+    },
+    {
+      "service": "oms-health-exporter",
+      "aliases": [],
+      "port": 8026,
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/oms_health_exporter.py",
+      "profiles": ["manual"]
+    }
+  ]
+}

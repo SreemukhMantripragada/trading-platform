@@ -11,3 +11,5 @@ trading-ec2-key.pem
 
 # secrets
 ingestion/auth/token.json
+
+docs/

@@ -89,6 +89,41 @@ def _as_env_map(
     return env
 
 
+def _maybe_override_cmd(name: str, current: List[str]) -> List[str]:
+    """Allow swapping a service implementation via environment variables.
+
+    Priority:
+      1) SERVICE_CMD_<SERVICE_NAME>  (non-alnum -> _ , uppercased)
+      2) Stage-specific aliases for common stages:
+         INGEST_CMD, BARS1S_CMD, BARAGG_CMD
+    Returns the parsed override (shlex.split) or the original command.
+    """
+
+    def _env_key_from_service(service_name: str) -> str:
+        normalized = []
+        for ch in service_name:
+            normalized.append(ch if ch.isalnum() else "_")
+        return "SERVICE_CMD_" + "".join(normalized).upper()
+
+    candidates = [_env_key_from_service(name)]
+    alias_map = {
+        "INGEST_CMD": {"zerodha-ws", "ingestion", "ws"},
+        "BARS1S_CMD": {"bar-builder-1s", "bars-1s", "bar_builder_1s"},
+        "BARAGG_CMD": {"bar-aggregator", "bar_aggregator", "bars-agg", "agg-multi"},
+    }
+    for alias, names in alias_map.items():
+        if name in names:
+            candidates.append(alias)
+
+    for env_key in candidates:
+        raw = os.getenv(env_key)
+        if raw:
+            parts = shlex.split(raw)
+            if parts:
+                return parts
+    return current
+
+
 @dataclass
 class ServiceSpec:
     name: str
@@ -288,6 +323,7 @@ def _load_config(path: Path) -> SupervisorConfig:
         if cmd_raw is None:
             raise SystemExit(f"Service {name!r} is missing required `cmd` field.")
         cmd = _normalize_cmd(cmd_raw, tokens)
+        cmd = _maybe_override_cmd(name, cmd)
         cwd_raw = item.get("cwd")
         if isinstance(cwd_raw, str):
             cwd_path = Path(_substitute(cwd_raw, tokens)).expanduser()

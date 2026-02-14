@@ -2,7 +2,7 @@
 Compare local bars_1m with Zerodha historical for a day (IST market window).
 Writes recon_runs/summary/detail (same schema as earlier).
 Usage:
-  python monitoring/daily_recon_v2.py --date 2025-09-09 --symbols RELIANCE,TCS
+  python monitoring/daily_recon.py --date 2025-09-09 --symbols RELIANCE,TCS
 """
 import os, csv, json, argparse, asyncio, asyncpg
 from datetime import datetime, time, timedelta, timezone

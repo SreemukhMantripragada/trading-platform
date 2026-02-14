@@ -1,12 +1,12 @@
 # ops/stack.plan.yaml
 processes:
   - name: bars1s
-    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=ticks OUT_TOPIC=bars.1s METRICS_PORT=8003 python compute/bar_builder_1s.py"
-    port: 8003
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=ticks OUT_TOPIC=bars.1s METRICS_PORT=8112 python compute/bar_builder_1s.py"
+    port: 8112
 
   - name: bars1m
-    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=bars.1s OUT_TOPIC=bars.1m METRICS_PORT=8004 python compute/bar_aggregator.py"
-    port: 8004
+    cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=bars.1s OUT_TOPIC=bars.1m METRICS_PORT=8118 python compute/bar_aggregator_1m.py"
+    port: 8118
 
   - name: runner
     cmd: "KAFKA_BROKER=localhost:9092 IN_TOPIC=bars.1m OUT_TOPIC=orders METRICS_PORT=8011 python strategy/runner_unified.py"

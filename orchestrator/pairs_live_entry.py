@@ -28,6 +28,10 @@ try:
     from dotenv import load_dotenv  # type: ignore
 except ImportError as exc:  # pragma: no cover
     raise SystemExit("python-dotenv is required. Install with `pip install python-dotenv`.") from exc
+try:
+    from orchestrator.metrics_ports import metrics_port_for, metrics_env_key_for
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from metrics_ports import metrics_port_for, metrics_env_key_for
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 VENV_PY = ROOT_DIR / ".venv" / "bin" / "python"
@@ -48,20 +52,6 @@ SERVICE_CMDS = [
     ("zerodha-gateway", [PYTHON_BIN, "execution/zerodha_gateway.py"]),
     ("zerodha-poller", [PYTHON_BIN, "execution/zerodha_poller.py"]),
 ]
-
-SERVICE_METRICS_PORT = {
-    "zerodha-ws": "8111",
-    "bar-builder-1s": "8112",
-    "bar-agg-1m": "8118",
-    "bar-agg-multi": "8113",
-    "pair-watch": "8114",
-    "pairs-exec": "8115",
-    "risk-manager": "8116",
-    "budget-guard": "8123",
-    "zerodha-gateway": "8017",
-    "zerodha-poller": "8018",
-}
-
 
 async def spawn_service(
     name: str, cmd: List[str], env: Dict[str, str], log_dir: Path
@@ -138,11 +128,11 @@ async def main() -> None:
     async def launch_all():
         for name, cmd in services:
             env = base_env.copy()
-            port = SERVICE_METRICS_PORT.get(name)
+            port = metrics_port_for(name)
             if port:
                 env["METRICS_PORT"] = port
-                if name == "pair-watch":
-                    env["PAIRWATCH_METRICS_PORT"] = port
+                env_key = metrics_env_key_for(name)
+                env[env_key] = port
 
             if name == "budget-guard":
                 env.setdefault("IN_TOPIC", "orders.sized")

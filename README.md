@@ -71,7 +71,7 @@ flowchart TD
 | Strategy | Modular runners, ensembles, pairs engines | `strategy/runner_modular.py`, `strategy/ensemble_engine.py` |
 | Risk | Budget guardrails, spend tracking, exporters | `risk/manager_v2.py`, `risk/order_budget_guard.py` |
 | Execution | OMS, C++ matcher, Zerodha gateway | `execution/oms.py`, `execution/paper_gateway_matcher.py`, `execution/zerodha_gateway.py` |
-| Monitoring | Recon, doctor CLI, Grafana/Prometheus | `monitoring/doctor.py`, `monitoring/daily_recon_v2.py` |
+| Monitoring | Recon, doctor CLI, Grafana/Prometheus | `monitoring/doctor.py`, `monitoring/daily_recon.py` |
 
 ## Research & Scoring
 - Backtests + sweeps: `backtest/grid_runner_parallel.py`, `backtest/engine.py`
@@ -83,6 +83,9 @@ flowchart TD
 - C++ matcher builds with `make matcher-build` (clang/cmake required) before `make matcher-run`.
 - Kafka payloads stay validated via `schemas/*.schema.json`; update schemas alongside producers.
 - Keep `configs/*.yaml` versioned; runtime overrides land in `*.runtime.yaml`.
+- Metrics endpoints are registry-driven via `configs/metrics_endpoints.json`; use `make metrics-list` and `make metrics-sync`.
 
 ## Further Reading
 - `docs/ingestion.md` • `docs/compute.md` • `docs/strategy.md` • `docs/risk.md` • `docs/execution.md` • `docs/monitoring.md` • `docs/scoring.md`
+- `docs/study_plan_21d.md` • `docs/runbook_dry_mode.md` • `docs/architecture_tech_choices.md` • `docs/repo_file_catalog.md` • `docs/critical_file_deep_notes.md`
+- `docs/metrics_endpoints.md`

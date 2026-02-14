@@ -116,6 +116,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - ./prometheus/targets_apps.json:/etc/prometheus/targets_apps.json:ro
     ports: [ "${PROMETHEUS_PORT}:9090" ]
     networks: [ core ]
 

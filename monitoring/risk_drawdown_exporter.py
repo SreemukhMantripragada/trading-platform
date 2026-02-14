@@ -14,7 +14,7 @@ Metrics:
 
 Run:
   POSTGRES_HOST=localhost POSTGRES_PORT=5432 POSTGRES_DB=trading POSTGRES_USER=trader POSTGRES_PASSWORD=trader \
-  METRICS_PORT=8018 python monitoring/risk_drawdown_exporter.py
+  METRICS_PORT=8019 python monitoring/risk_drawdown_exporter.py
 """
 from __future__ import annotations
 import os, asyncio, asyncpg
@@ -24,7 +24,7 @@ from prometheus_client import start_http_server, Gauge
 
 PG_HOST=os.getenv("POSTGRES_HOST","localhost"); PG_PORT=int(os.getenv("POSTGRES_PORT","5432"))
 PG_DB=os.getenv("POSTGRES_DB","trading"); PG_USER=os.getenv("POSTGRES_USER","trader"); PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
-METRICS_PORT=int(os.getenv("METRICS_PORT","8018"))
+METRICS_PORT=int(os.getenv("METRICS_PORT","8019"))
 
 EQUITY = Gauge("risk_equity_inr", "Intraday equity (realized+MTM) per bucket", ["bucket"])
 DD     = Gauge("risk_drawdown_pct", "Max drawdown (%) from today's peak per bucket", ["bucket"])

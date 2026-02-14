@@ -1,0 +1,244 @@
+[
+  {
+    "targets": [
+      "host.docker.internal:8111"
+    ],
+    "labels": {
+      "service": "zerodha-ws",
+      "component": "ingestion",
+      "language": "python",
+      "entrypoint": "ingestion/zerodha_ws.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8112"
+    ],
+    "labels": {
+      "service": "bar-builder-1s",
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_builder_1s.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8113"
+    ],
+    "labels": {
+      "service": "bar-aggregator",
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_aggregator_1m_to_multi.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8118"
+    ],
+    "labels": {
+      "service": "bar-agg-1m",
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/bar_aggregator_1m.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8114"
+    ],
+    "labels": {
+      "service": "pair-watch",
+      "component": "compute",
+      "language": "python",
+      "entrypoint": "compute/pair_watch_producer.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8115"
+    ],
+    "labels": {
+      "service": "pairs-executor",
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/pairs_executor.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8116"
+    ],
+    "labels": {
+      "service": "risk-manager",
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/manager_v2.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8117"
+    ],
+    "labels": {
+      "service": "paper-matcher",
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/paper_gateway_matcher.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8023"
+    ],
+    "labels": {
+      "service": "budget-guard",
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/order_budget_guard.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8017"
+    ],
+    "labels": {
+      "service": "zerodha-gateway",
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/zerodha_gateway.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8007"
+    ],
+    "labels": {
+      "service": "runner-modular",
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_modular.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8009"
+    ],
+    "labels": {
+      "service": "runner-ensemble",
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_ensemble.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8011"
+    ],
+    "labels": {
+      "service": "runner-unified",
+      "component": "strategy",
+      "language": "python",
+      "entrypoint": "strategy/runner_unified.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8016"
+    ],
+    "labels": {
+      "service": "gateway-oms-exporter",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/gateway_oms_exporter.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8018"
+    ],
+    "labels": {
+      "service": "oms-lifecycle-exporter",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/oms_lifecycle_exporter.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8019"
+    ],
+    "labels": {
+      "service": "risk-drawdown-exporter",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/risk_drawdown_exporter.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8020"
+    ],
+    "labels": {
+      "service": "pairs-exporter",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/pairs_exporter.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8021"
+    ],
+    "labels": {
+      "service": "broker-reconciler",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/broker_reconciler.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8022"
+    ],
+    "labels": {
+      "service": "budget-source-exporter",
+      "component": "risk",
+      "language": "python",
+      "entrypoint": "risk/budget_source.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8024"
+    ],
+    "labels": {
+      "service": "accounting-pnl-exporter",
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/accounting_pnl.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8025"
+    ],
+    "labels": {
+      "service": "oms-exporter",
+      "component": "monitoring",
+      "language": "python",
+      "entrypoint": "monitoring/oms_exporter.py"
+    }
+  },
+  {
+    "targets": [
+      "host.docker.internal:8026"
+    ],
+    "labels": {
+      "service": "oms-health-exporter",
+      "component": "execution",
+      "language": "python",
+      "entrypoint": "execution/oms_health_exporter.py"
+    }
+  }
+]
