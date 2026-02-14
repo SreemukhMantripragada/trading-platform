@@ -54,13 +54,18 @@ fi
 # 4. Docker Compose services (Postgres & Kafka)
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   pushd infra >/dev/null
-  for svc in postgres kafka; do
-    if docker compose ps "${svc}" 2>/dev/null | grep -q 'Up'; then
-      ok "docker compose service '${svc}' is Up."
-    else
-      warn "docker compose service '${svc}' not running. Start with 'cd infra && docker compose up -d'."
-    fi
-  done
+  if [ ! -f ".env.docker" ]; then
+    warn "infra/.env.docker missing. Run 'make docker-config-sync' (or 'make up') first."
+  else
+    COMPOSE_ARGS=(--env-file .env.docker)
+    for svc in postgres kafka; do
+      if docker compose "${COMPOSE_ARGS[@]}" ps "${svc}" 2>/dev/null | grep -q 'Up'; then
+        ok "docker compose service '${svc}' is Up."
+      else
+        warn "docker compose service '${svc}' not running. Start with 'make up'."
+      fi
+    done
+  fi
   popd >/dev/null
 else
   warn "docker compose not available; skipping container health checks."

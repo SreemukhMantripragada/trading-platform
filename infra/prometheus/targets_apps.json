@@ -1,7 +1,7 @@
 [
   {
     "targets": [
-      "host.docker.internal:8111"
+      "app-supervisor:8111"
     ],
     "labels": {
       "service": "zerodha-ws",
@@ -12,7 +12,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8112"
+      "app-supervisor:8112"
     ],
     "labels": {
       "service": "bar-builder-1s",
@@ -23,7 +23,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8113"
+      "app-supervisor:8113"
     ],
     "labels": {
       "service": "bar-aggregator",
@@ -34,7 +34,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8118"
+      "app-supervisor:8118"
     ],
     "labels": {
       "service": "bar-agg-1m",
@@ -45,7 +45,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8114"
+      "app-supervisor:8114"
     ],
     "labels": {
       "service": "pair-watch",
@@ -56,7 +56,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8115"
+      "app-supervisor:8115"
     ],
     "labels": {
       "service": "pairs-executor",
@@ -67,7 +67,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8116"
+      "app-supervisor:8116"
     ],
     "labels": {
       "service": "risk-manager",
@@ -78,7 +78,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8117"
+      "app-supervisor:8117"
     ],
     "labels": {
       "service": "paper-matcher",
@@ -89,7 +89,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8023"
+      "app-supervisor:8023"
     ],
     "labels": {
       "service": "budget-guard",
@@ -100,7 +100,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8017"
+      "app-supervisor:8017"
     ],
     "labels": {
       "service": "zerodha-gateway",
@@ -111,7 +111,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8007"
+      "app-supervisor:8007"
     ],
     "labels": {
       "service": "runner-modular",
@@ -122,7 +122,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8009"
+      "app-supervisor:8009"
     ],
     "labels": {
       "service": "runner-ensemble",
@@ -133,7 +133,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8011"
+      "app-supervisor:8011"
     ],
     "labels": {
       "service": "runner-unified",
@@ -144,7 +144,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8016"
+      "app-supervisor:8016"
     ],
     "labels": {
       "service": "gateway-oms-exporter",
@@ -155,7 +155,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8018"
+      "app-supervisor:8018"
     ],
     "labels": {
       "service": "oms-lifecycle-exporter",
@@ -166,7 +166,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8019"
+      "app-supervisor:8019"
     ],
     "labels": {
       "service": "risk-drawdown-exporter",
@@ -177,7 +177,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8020"
+      "app-supervisor:8020"
     ],
     "labels": {
       "service": "pairs-exporter",
@@ -188,7 +188,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8021"
+      "app-supervisor:8021"
     ],
     "labels": {
       "service": "broker-reconciler",
@@ -199,7 +199,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8022"
+      "app-supervisor:8022"
     ],
     "labels": {
       "service": "budget-source-exporter",
@@ -210,7 +210,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8024"
+      "app-supervisor:8024"
     ],
     "labels": {
       "service": "accounting-pnl-exporter",
@@ -221,7 +221,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8025"
+      "app-supervisor:8025"
     ],
     "labels": {
       "service": "oms-exporter",
@@ -232,7 +232,7 @@
   },
   {
     "targets": [
-      "host.docker.internal:8026"
+      "app-supervisor:8026"
     ],
     "labels": {
       "service": "oms-health-exporter",

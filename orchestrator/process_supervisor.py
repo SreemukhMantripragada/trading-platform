@@ -366,8 +366,13 @@ def parse_args() -> argparse.Namespace:
 
 def build_base_env(config_env: Dict[str, str]) -> Dict[str, str]:
     if load_dotenv is not None:
-        load_dotenv(ROOT_DIR / ".env", override=False)
-        load_dotenv(ROOT_DIR / "infra" / ".env", override=False)
+        for env_file in (
+            ROOT_DIR / ".env",
+            ROOT_DIR / "infra" / ".env.docker",
+            ROOT_DIR / "infra" / ".env",
+        ):
+            if env_file.exists():
+                load_dotenv(env_file, override=False)
     base_env = os.environ.copy()
     venv_bin = VENV_PY.parent
     if venv_bin.exists():

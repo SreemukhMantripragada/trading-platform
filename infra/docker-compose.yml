@@ -4,7 +4,7 @@ services:
     image: bitnami/zookeeper:3.9
     container_name: zookeeper
     restart: unless-stopped
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - ALLOW_ANONYMOUS_LOGIN=${ZOOKEEPER_ALLOW_ANONYMOUS_LOGIN}
     ports: [ "${ZOOKEEPER_CLIENT_PORT}:2181" ]
@@ -17,13 +17,13 @@ services:
     container_name: kafka
     restart: unless-stopped
     depends_on: [ zookeeper ]
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - KAFKA_CFG_BROKER_ID=${KAFKA_BROKER_ID}
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:${ZOOKEEPER_CLIENT_PORT}
 
       # Listeners
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_INTERNAL://:29092
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_INTERNAL://:${KAFKA_INSIDE_PORT}
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://${KAFKA_OUTSIDE_HOST}:${KAFKA_OUTSIDE_PORT},PLAINTEXT_INTERNAL://kafka:${KAFKA_INSIDE_PORT}
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT_INTERNAL
@@ -59,7 +59,7 @@ services:
     container_name: kafka-ui
     restart: unless-stopped
     depends_on: [ kafka ]
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - KAFKA_CLUSTERS_0_NAME=${KUI_CLUSTER_NAME}
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:${KAFKA_INSIDE_PORT}
@@ -84,10 +84,10 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - BROKER=kafka:${KAFKA_INSIDE_PORT}
-      - RF=1
+      - RF=${RF}
       - DRY_RUN=${TOPICS_DRY_RUN}
     command: bash -lc "/create-topics.sh"
     restart: "no"
@@ -99,7 +99,7 @@ services:
     image: postgres:15
     container_name: postgres
     restart: unless-stopped
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -108,7 +108,38 @@ services:
     networks: [ core ]
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+  app-supervisor:
+    build:
+      context: ..
+      dockerfile: Dockerfile.app
+    image: trading-app-supervisor:local
+    container_name: app-supervisor
+    restart: unless-stopped
+    env_file: [ ".env.docker" ]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+    environment:
+      - KAFKA_BOOT=kafka:${KAFKA_INSIDE_PORT}
+      - KAFKA_BROKER=kafka:${KAFKA_INSIDE_PORT}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - LIVE_TRADING=${LIVE_TRADING}
+      - AUTO_SWITCH_TO_LIVE=${AUTO_SWITCH_TO_LIVE}
+      - PYTHONUNBUFFERED=1
+    command: [ "python", "orchestrator/process_supervisor.py", "--config", "${APP_SUPERVISOR_CONFIG}" ]
+    volumes:
+      - ..:/app
+    networks: [ core ]
 
   prometheus:
     image: prom/prometheus:latest
@@ -125,7 +156,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
-    env_file: [ ".env" ]
+    env_file: [ ".env.docker" ]
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
     ports: [ "${GRAFANA_PORT}:3000" ]

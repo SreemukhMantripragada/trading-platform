@@ -19,19 +19,19 @@
 | `ingestion/auth/` | Stores Kite API tokens (`token.json`) generated via `make kite-exchange`. | Filesystem |
 
 ## Configuration
-- Environment: `.env` for secrets and `.infra/.env` for broker endpoints, topic retention, and per-process ports.
+- Environment: `.env` for broker/app secrets. Docker infra config is single-sourced in `configs/docker_stack.json` and rendered to `infra/.env.docker` via `make docker-config-sync` / `make up`.
 - Auth: run `make kite-url` → `make kite-exchange REQUEST_TOKEN=...` to refresh the access token in `ingestion/auth/token.json`. Keep the file out of version control.
 - Symbols: maintain tradable universe in `configs/tokens.csv` and `configs/universe_*.csv`.
 - JSON Schemas: see `schemas/*.schema.json` to validate payload structure before publishing.
 
 ## Running Locally
-- Live websocket bridge: `make ws` (loads `.env`, `.infra/.env`, and streams to the default Kafka broker).
+- Live websocket bridge: `make ws` (loads `.env` and infra env defaults, streams to the default Kafka broker).
 - DLQ inspection: `python ingestion/dlq_consumer.py --topic ticks.dlq --dump out.jsonl`.
 - Historical merges: `make merge-hist D1=20240101 D2=20240105`.
 - Instrument sync: `make nfo-sync`.
 
 ## Operational Notes
 - DLQ consumers annotate failures with reason codes; triage outputs to avoid silent data loss.
-- Use `TOPICS_DRY_RUN=1 make up` if you need to audit topic creation without writing to Kafka.
+- For topic-init dry runs, set `TOPICS_DRY_RUN` in `configs/docker_stack.json`, then run `make docker-config-sync` (or `make up`).
 - Historical merge scripts assume Postgres connectivity; verify `infra/docker-compose.yml` is running (`make up`) before executing.
 - For dry runs without broker credentials, set `KITE_API_KEY`, `KITE_API_SECRET`, `KITE_ACCESS_TOKEN` to dummy values and rely on smoke producers.

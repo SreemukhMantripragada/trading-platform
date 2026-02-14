@@ -1,4 +1,5 @@
 infra/.env
+infra/.env.docker
 .venv
 archive
 # local/dev junk
@@ -12,4 +13,5 @@ trading-ec2-key.pem
 # secrets
 ingestion/auth/token.json
 
-docs/
+# Older versions
+Makefile.legacy

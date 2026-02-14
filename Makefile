@@ -1,42 +1,69 @@
-
-.PHONY: up down ps logs topics doctor matcher-build matcher-run strat-1m strat-5m risk-v2 exec-paper-matcher agg-multi pairs-pipeline metrics-list metrics-sync
+.PHONY: help up down reset ps logs doctor topics docker-config-list docker-config-sync metrics-list metrics-sync go-build legacy
 .DEFAULT_GOAL := help
 
-POSTGRES_HOST ?= localhost
-POSTGRES_PORT ?= 5432
-POSTGRES_DB   ?= trading
-POSTGRES_USER ?= trader
-POSTGRES_PASSWORD ?= trader
+DOCKER_STACK_REGISTRY ?= configs/docker_stack.json
+DOCKER_STACK_ENV ?= infra/.env.docker
+METRICS_REGISTRY ?= configs/metrics_endpoints.json
+METRICS_TARGETS ?= infra/prometheus/targets_apps.json
+LEGACY_MAKEFILE ?= Makefile.legacy
+DOCKER_COMPOSE_CMD = cd infra && docker compose --env-file $(notdir $(DOCKER_STACK_ENV))
 
-PAIRS_REMOTE_HOST ?= ubuntu@65.2.181.37
-PAIRS_REMOTE_PATH ?= ~/trading-platform/configs/pairs_next_day.yaml
-PAIRS_REMOTE_KEY  ?= $(shell pwd)/trading-ec2-key.pem
+help:
+	@echo "Core targets:"
+	@echo "  make up                # full Docker unit (infra + app supervisor)"
+	@echo "  make down              # stop Docker unit"
+	@echo "  make reset             # stop + remove volumes"
+	@echo "  make ps                # container status"
+	@echo "  make logs              # follow logs"
+	@echo "  make doctor            # infra health checks"
+	@echo "  make topics            # (re)create Kafka topics"
+	@echo "  make docker-config-list"
+	@echo "  make docker-config-sync"
+	@echo "  make metrics-list"
+	@echo "  make metrics-sync"
+	@echo "  make go-build          # build Go binaries in Docker"
+	@echo ""
+	@echo "Legacy targets are available via: make legacy TARGET=<name>"
 
-up: 
-	python3 tools/metrics_catalog.py --check --write-prom-targets infra/prometheus/targets_apps.json
-	cd infra && docker compose up -d && docker compose ps
-down: 
-	cd infra && docker compose down 
-reset:
-	cd infra && docker compose down -v
-ps: 
-	cd infra && docker compose ps
-logs: 
-	cd infra && docker compose logs -f
-topics:
-	docker cp infra/scripts/create-topics.sh kafka:/usr/local/bin/create-topics
-	docker exec -t kafka bash -lc 'BROKER=kafka:29092 RF=1 DRY_RUN=0 /usr/local/bin/create-topics'
-doctor: 
+up: docker-config-sync metrics-sync
+	$(DOCKER_COMPOSE_CMD) up -d
+	$(DOCKER_COMPOSE_CMD) ps
+
+down: docker-config-sync
+	$(DOCKER_COMPOSE_CMD) down
+
+reset: docker-config-sync
+	$(DOCKER_COMPOSE_CMD) down -v
+
+ps: docker-config-sync
+	$(DOCKER_COMPOSE_CMD) ps
+
+logs: docker-config-sync
+	$(DOCKER_COMPOSE_CMD) logs -f
+
+doctor:
 	python3 monitoring/doctor.py
 
-matcher-build:
-	cd execution/cpp/matcher && cmake -S . -B build && cmake --build build -j
+topics: docker-config-sync
+	@set -a; . $(DOCKER_STACK_ENV); set +a; \
+	docker cp infra/scripts/create-topics.sh kafka:/usr/local/bin/create-topics; \
+	docker exec -t kafka bash -lc "BROKER=kafka:$${KAFKA_INSIDE_PORT} RF=$${RF} DRY_RUN=$${TOPICS_DRY_RUN} /usr/local/bin/create-topics"
 
-matcher-run:
-	./execution/cpp/matcher/build/matcher
+# Docker stack config registry helpers
+docker-config-list:
+	python3 tools/docker_stack_config.py --registry $(DOCKER_STACK_REGISTRY) --check
+
+docker-config-sync:
+	python3 tools/docker_stack_config.py --registry $(DOCKER_STACK_REGISTRY) --check --write-env $(DOCKER_STACK_ENV)
+
+metrics-list:
+	python3 tools/metrics_catalog.py --registry $(METRICS_REGISTRY) --check
+
+metrics-sync: docker-config-sync
+	@set -a; . $(DOCKER_STACK_ENV); set +a; \
+	python3 tools/metrics_catalog.py --registry $(METRICS_REGISTRY) --host "$${APP_METRICS_HOST:-host.docker.internal}" --check --write-prom-targets $(METRICS_TARGETS)
 
 # Build Go ingestion/aggregation binaries in a container (no host Go needed)
-.PHONY: go-build
 go-build:
 	docker build -f infra/docker/go-builder.Dockerfile -t trading-go-builder . && \
 	docker create --name trading-go-builder-temp trading-go-builder && \
@@ -45,257 +72,15 @@ go-build:
 	docker cp trading-go-builder-temp:/out/bar_aggregator_multi go/bin/bar_aggregator_multi && \
 	docker rm trading-go-builder-temp
 
-strat-1m:
-	. .venv/bin/activate && TF=1m IN_TOPIC=bars.1m KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
-	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	python strategy/runner_modular.py
+legacy:
+	@test -n "$(TARGET)" || (echo "Usage: make legacy TARGET=<target-name>" && exit 1)
+	@$(MAKE) -f $(LEGACY_MAKEFILE) $(TARGET)
 
-strat-5m:
-	. .venv/bin/activate && TF=5m IN_TOPIC=bars.5m KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
-	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	python strategy/runner_modular.py
-
-risk-v2:
-	. .venv/bin/activate && IN_TOPIC=orders OUT_TOPIC=orders.sized KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
-	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	python risk/manager_v2.py
-
-exec-paper-matcher:
-	. .venv/bin/activate && IN_TOPIC=orders.sized KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
-	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	MATCHER_HOST=127.0.0.1 MATCHER_PORT=5555 \
-	python execution/paper_gateway_matcher.py
-
-agg-multi:
-	. .venv/bin/activate && IN_TOPIC=bars.1m KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
-	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	python compute/bar_aggregator_1m_to_multi.py
-
-# ---- Swappable ingress/agg hooks (run supervisor with overrides) ----
-.PHONY: ingest-go bars1s-go baragg-go
-ingest-go:
-	@echo "[override] zerodha-ws -> ${INGEST_CMD:-./go/bin/ws_bridge}" && \
-	SERVICE_CMD_ZERODHA_WS=${INGEST_CMD:-./go/bin/ws_bridge} INGEST_CMD=${INGEST_CMD:-./go/bin/ws_bridge} \
-	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
-
-bars1s-go:
-	@echo "[override] bar-builder-1s -> ${BARS1S_CMD:-./go/bin/bar_builder_1s}" && \
-	SERVICE_CMD_BAR_BUILDER_1S=${BARS1S_CMD:-./go/bin/bar_builder_1s} BARS1S_CMD=${BARS1S_CMD:-./go/bin/bar_builder_1s} \
-	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
-
-baragg-go:
-	@echo "[override] bar-aggregator -> ${BARAGG_CMD:-./go/bin/bar_aggregator_multi}" && \
-	SERVICE_CMD_BAR_AGGREGATOR=${BARAGG_CMD:-./go/bin/bar_aggregator_multi} BARAGG_CMD=${BARAGG_CMD:-./go/bin/bar_aggregator_multi} \
-	python orchestrator/process_supervisor.py --config configs/process_supervisor.yaml
-
-.PHONY: ws recon-v2 pairs-make pairs-monitor bt-ui
-ws:
-	. .venv/bin/activate && python ingestion/zerodha_ws.py
-recon-v2:
-	. .venv/bin/activate && python monitoring/daily_recon.py --date ${D}
-pairs-make:
-	. .venv/bin/activate && python research/pairs_maker.py --symbols ${SYMS} --days ${DAYS:-60}
-pairs-monitor:
-	. .venv/bin/activate && python strategy/pairs_monitor.py
-bt-ui:
-	. .venv/bin/activate && streamlit run ui/backtest_app.py --server.address 0.0.0.0 --server.port 8501
-
-pairs-pipeline:
-	REMOTE="${PAIRS_REMOTE_HOST}" REMOTE_PATH="${PAIRS_REMOTE_PATH}" SSH_KEY_PATH="${PAIRS_REMOTE_KEY}" \
-	POSTGRES_HOST=${POSTGRES_HOST} POSTGRES_PORT=${POSTGRES_PORT} \
-	POSTGRES_DB=${POSTGRES_DB} POSTGRES_USER=${POSTGRES_USER} POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-	bash tools/pairs_pipeline.sh
-
-# --- Gateway/OMS exporter ---
-exporter-gw:
-	. .venv/bin/activate && \
-	METRICS_PORT=8016 \
-	POSTGRES_HOST=${POSTGRES_HOST} POSTGRES_PORT=${POSTGRES_PORT} POSTGRES_DB=${POSTGRES_DB} POSTGRES_USER=${POSTGRES_USER} POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-	python monitoring/gateway_oms_exporter.py
-
-# --- EOD one-button ---
-eod:
-	. .venv/bin/activate && python orchestrator/eod_pipeline.py
-
-exporter-oms:
-	. .venv/bin/activate && \
-	METRICS_PORT=8018 \
-	POSTGRES_HOST=${POSTGRES_HOST} POSTGRES_PORT=${POSTGRES_PORT} POSTGRES_DB=${POSTGRES_DB} POSTGRES_USER=${POSTGRES_USER} POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-	python monitoring/oms_lifecycle_exporter.py
-
-# Exporters
-exporter-dd:
-	. .venv/bin/activate && METRICS_PORT=8019 python monitoring/risk_drawdown_exporter.py
-
-# Kill broadcast + cancel listener
-kill-all:
-	. .venv/bin/activate && python execution/kill_broadcast.py --scope ALL --reason "manual"
-
-kill-bucket:
-	. .venv/bin/activate && python execution/kill_broadcast.py --scope BUCKET --bucket $(B) --reason "manual"
-
-cancel-listener:
-	. .venv/bin/activate && python execution/cancel_listener.py
-
-# Shadow toggle (start/stop processes your way; here foreground helpers)
-shadow-on:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} IN_TOPIC=orders OUT_TOPIC=orders.paper python execution/shadow_mirror.py
-pairs-exp:
-	. .venv/bin/activate && METRICS_PORT=8020 python monitoring/pairs_exporter.py
-
-merge-hist:
-	. .venv/bin/activate && python ingestion/merge_hist_daily.py
-
-archive-day:
-	. .venv/bin/activate && python compute/sinks/s3_archiver.py
-
-promote-topn:
-	. .venv/bin/activate && TF=$(TF) N=$(N) python tools/promote_topn.py
-
-rebalance:
-	. .venv/bin/activate && BASE_RISK=configs/risk_budget.yaml OUT_RISK=configs/risk_budget.runtime.yaml \
-		python risk/rebalance_daemon.py
-
-
-# Optional: one-shot Grafana import via API (requires admin creds)
-grafana-import-backtest:
-	curl -sS -u $${GF_USER:-admin}:$${GF_PASS:-admin} -H 'Content-Type: application/json' \
-		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
-		--data-binary @infra/grafana/dashboards/backtest_results.json | jq .
-
-grafana-import-pairs:
-	curl -sS -u $${GF_USER:-admin}:$${GF_PASS:-admin} -H 'Content-Type: application/json' \
-		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
-		--data-binary @infra/grafana/dashboards/pairs.json | jq .
-
-pairs-exec:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=pairs.signals OUT_TOPIC=orders METRICS_PORT=8115 \
-	RISK_BUDGET=configs/risk_budget.runtime.yaml \
-	python execution/pairs_executor.py
-
-pairs-sim:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} python tools/sim_pairs_signal.py
-
-topic-pairs:
-	docker exec -it kafka bash -lc "kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic pairs.signals --replication-factor 1 --partitions 3"
-
-grafana-import-pairs-pnl:
-	curl -sS -u $${GF_USER:-admin}:$${GF_PASS:-admin} -H 'Content-Type: application/json' \
-		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
-		--data-binary @infra/grafana/dashboards/pairs_pnl.json | jq .
-
-oms-health:
-	. .venv/bin/activate && METRICS_PORT=8026 python execution/oms_health_exporter.py
-
-recon-broker:
-	. .venv/bin/activate && METRICS_PORT=8021 ENFORCE=0 QTY_TOL=0 BREACH_SYMS=0 KILL_QTY_TOL=0 \
-		python monitoring/broker_reconciler.py
-
-grafana-import-oms:
-	curl -sS -u $${GF_USER:-admin}:$${GF_PASS:-admin} -H 'Content-Type: application/json' \
-		-X POST $${GF_URL:-http://localhost:3000}/api/dashboards/db \
-		--data-binary @infra/grafana/dashboards/oms_health.json | jq .
-
-budget-exp:
-	. .venv/bin/activate && METRICS_PORT=8022 python risk/budget_source.py
-
-nfo-sync:
-	. .venv/bin/activate && python ingestion/nfo_instruments.py
-
-zerodha-canary:
-	. .venv/bin/activate && DRY_RUN=1 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-		IN_TOPIC=orders FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
-
-zerodha-live:
-	. .venv/bin/activate && DRY_RUN=0 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-		IN_TOPIC=orders FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
-
-budget-guard:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=orders OUT_TOPIC=orders.allowed METRICS_PORT=8023 \
-	python -m risk.order_budget_guard
-
-zerodha-canary-allowed:
-	. .venv/bin/activate && DRY_RUN=1 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=orders.allowed FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
-
-zerodha-live-allowed:
-	. .venv/bin/activate && DRY_RUN=0 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=orders.allowed FILL_TOPIC=fills METRICS_PORT=8017 python execution/zerodha_gateway.py
-
-oms-ddl:
-	docker exec -i postgres psql -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trading} -f infra/postgres/init/10_oms.sql
-
-gateway-dry:
-	. .venv/bin/activate && DRY_RUN=1 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=orders.allowed FILL_TOPIC=fills python execution/zerodha_gateway.py
-
-gateway-live:
-	. .venv/bin/activate && DRY_RUN=0 KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=orders.allowed FILL_TOPIC=fills python execution/zerodha_gateway.py
-
-exit-engine:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	OUT_TOPIC=orders EXIT_SCAN_SEC=5 python execution/exit_engine.py
-
-poller-dry:
-	. .venv/bin/activate && DRY_RUN=1 POLL_SEC=4 \
-	KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} FILL_TOPIC=fills \
-	python execution/zerodha_poller.py
-
-poller-live:
-	. .venv/bin/activate && DRY_RUN=0 POLL_SEC=4 \
-	KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} FILL_TOPIC=fills \
-	python execution/zerodha_poller.py
-
-bt-grid:
-	. .venv/bin/activate && python backtest/grid_search.py
-
-pairs-ddl:
-	docker exec -i postgres psql -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trading} \
-		-f infra/postgres/init/12_pairs.sql
-
-pairs-scan:
-	. .venv/bin/activate && PAIRS_LOOKBACK_DAYS=45 PAIRS_PROMOTE_TOP_K=8 \
-	python backtest/pairs_scan.py
-
-pairs-live:
-	. .venv/bin/activate && KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
-	IN_TOPIC=bars.1m OUT_TOPIC=orders PAIRS_PER_TRADE_NOTIONAL=20000 \
-	python strategy/pairs_live.py
-
-
-# ===== Zerodha auth helpers =====
-.PHONY: kite-url kite-url-open kite-exchange kite-login kite-verify kite-clear-token
-
-kite-url:
-	. .venv/bin/activate; python -c 'import os; from dotenv import load_dotenv; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); redir=os.getenv("KITE_REDIRECT_URL") or "https://127.0.0.1/"; assert ak, "KITE_API_KEY missing"; print(f"https://kite.trade/connect/login?api_key={ak}&v=3&redirect_params=redirect_url={redir}")'
-
-kite-url-open:
-	@URL="$$(make -s kite-url)"; echo "$$URL"; open "$$URL"
-
-# Usage: make kite-exchange REQUEST_TOKEN=xxxxxxxxxxxxxxxx
-kite-exchange:
-	@test -n "$(REQUEST_TOKEN)" || (echo "Usage: make kite-exchange REQUEST_TOKEN=..." && exit 1)
-	. .venv/bin/activate; python -c 'import os, json, time; from dotenv import load_dotenv; from kiteconnect import KiteConnect; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); sk=os.getenv("KITE_API_SECRET"); rt=os.getenv("REQUEST_TOKEN") or "$(REQUEST_TOKEN)"; assert ak and sk, "KITE_API_KEY/SECRET missing"; assert rt, "REQUEST_TOKEN missing"; k=KiteConnect(api_key=ak); tok=k.generate_session(rt, api_secret=sk)["access_token"]; os.makedirs("ingestion/auth", exist_ok=True); json.dump({"api_key":ak,"access_token":tok,"ts":int(time.time())}, open("ingestion/auth/token.json","w"), indent=2); print("✅ Saved access_token to ingestion/auth/token.json")'
-
-kite-verify:
-	. .venv/bin/activate; python -c 'import os, json; from dotenv import load_dotenv; from kiteconnect import KiteConnect; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); T=json.load(open("ingestion/auth/token.json")); tok=T.get("access_token"); assert tok, "token.json missing/empty"; k=KiteConnect(api_key=ak); k.set_access_token(tok); p=k.profile(); print("✅ Token valid for:", p.get("user_id"), p.get("user_name"))'
-
-kite-capital:
-	. .venv/bin/activate; python -c 'import os, json; from dotenv import load_dotenv; from kiteconnect import KiteConnect; load_dotenv(".env"); load_dotenv("infra/.env"); ak=os.getenv("KITE_API_KEY"); T=json.load(open("ingestion/auth/token.json")); tok=T.get("access_token"); assert tok, "token.json missing/empty"; k=KiteConnect(api_key=ak); k.set_access_token(tok); m=k.margins("equity"); print("💰 Balance:", m.get("net"), "Available:", m["available"]["cash"])'
-
-kite-clear-token:
-	rm -f ingestion/auth/token.json; echo "🗑  deleted ingestion/auth/token.json"
-# Metrics registry helpers
-metrics-list:
-	python3 tools/metrics_catalog.py --check
-
-metrics-sync:
-	python3 tools/metrics_catalog.py --check --write-prom-targets infra/prometheus/targets_apps.json
+%:
+	@if [ -f "$(LEGACY_MAKEFILE)" ] && $(MAKE) -f $(LEGACY_MAKEFILE) -n $@ >/dev/null 2>&1; then \
+		echo "[make] '$@' moved to $(LEGACY_MAKEFILE)."; \
+		$(MAKE) -f $(LEGACY_MAKEFILE) $@; \
+	else \
+		echo "Unknown target '$@'. Run 'make help'."; \
+		exit 2; \
+	fi

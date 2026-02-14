@@ -46,18 +46,17 @@ flowchart TD
 ## Quick Start
 1. `python3 -m venv .venv && source .venv/bin/activate`
 2. `pip install -r requirements.txt`
-3. `make up` to launch Kafka, Postgres, Prometheus, Grafana, and Kafka UI.
-4. Populate `.env` plus `infra/.env`; exchange Kite tokens via `make kite-exchange REQUEST_TOKEN=...` when trading live.
+3. `make docker-config-list` (optional review) then `make up` to launch the full Docker unit (infra + app supervisor).
+4. Populate `.env` for broker/app secrets. Docker infra values are single-sourced in `configs/docker_stack.json` and rendered to `infra/.env.docker` by `make up` / `make docker-config-sync`.
+5. Exchange Kite tokens via `make kite-exchange REQUEST_TOKEN=...` when trading live.
 
 ## Run the Core Loop
-- Stream ticks: `make ws`
-- Build bars + aggregates: `make agg-multi`
-- Spin up strategies: `make strat-1m` / `make strat-5m`
-- Risk + paper execution: `make risk-v2` then `make exec-paper-matcher`
-- Flip to live Zerodha: `make zerodha-live-allowed` followed by `make zerodha-poller`
+- Default unit run: `make up` (starts `app-supervisor`, which runs `configs/process_supervisor.docker.yaml` inside Docker).
+- Inspect unit status/logs: `make ps`, `make logs`, `make doctor`.
+- Optional manual mode (host processes) remains available via existing `make ws`, `make agg-multi`, `make strat-1m`, etc.
 
 ## Process Supervisor
-- Launch coordinated stacks with `python orchestrator/process_supervisor.py` (prefers `.venv/bin/python`, loads `.env`/`infra/.env` automatically).
+- Launch coordinated stacks with `python orchestrator/process_supervisor.py` (prefers `.venv/bin/python`, loads `.env`, `infra/.env.docker`, then `infra/.env` automatically).
 - Configure services in `configs/process_supervisor.yaml`; `{{python}}` expands to the resolved interpreter and `{{root}}` to the repo root.
 - Set `stop_on_exit: false` on auxiliaries you do not want to bring the stack down; override per-service env vars under `env:`.
 - Logs stream to `runs/logs/process_supervisor/stack_<timestamp>` by default; change `log_dir` in the config if needed.
@@ -80,6 +79,8 @@ flowchart TD
 
 ## Development Notes
 - `make doctor` snapshots infra health and tails critical logs.
+- Docker stack config is single-sourced via `configs/docker_stack.json`; use `make docker-config-list` and `make docker-config-sync`.
+- Prometheus app target host is also controlled from `configs/docker_stack.json` via `APP_METRICS_HOST`.
 - C++ matcher builds with `make matcher-build` (clang/cmake required) before `make matcher-run`.
 - Kafka payloads stay validated via `schemas/*.schema.json`; update schemas alongside producers.
 - Keep `configs/*.yaml` versioned; runtime overrides land in `*.runtime.yaml`.

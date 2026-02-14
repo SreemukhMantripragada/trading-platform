@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "sections": [
+    {
+      "name": "zookeeper",
+      "vars": {
+        "ZOOKEEPER_CLIENT_PORT": "2181",
+        "ZOOKEEPER_ALLOW_ANONYMOUS_LOGIN": "yes"
+      }
+    },
+    {
+      "name": "kafka",
+      "vars": {
+        "KAFKA_OUTSIDE_HOST": "localhost",
+        "KAFKA_OUTSIDE_PORT": "9092",
+        "KAFKA_INSIDE_PORT": "29092",
+        "KAFKA_AUTO_CREATE_TOPICS_ENABLE": "false",
+        "ALLOW_PLAINTEXT_LISTENER": "yes",
+        "KAFKA_BROKER_ID": "1"
+      }
+    },
+    {
+      "name": "topics-init",
+      "vars": {
+        "TOPICS_DRY_RUN": "0",
+        "RF": "1",
+        "P_TICKS": "6",
+        "P_BARS": "6",
+        "P_ORDERS": "6",
+        "P_MISC": "3",
+        "P_DLQ": "1",
+        "TICKS_RETENTION_MS": "86400000",
+        "BARS1S_RETENTION_MS": "604800000",
+        "BARS1M_RETENTION_MS": "2592000000",
+        "BARS3M_RETENTION_MS": "5184000000",
+        "BARS5M_RETENTION_MS": "7776000000",
+        "BARS15M_RETENTION_MS": "15552000000",
+        "ORDERS_RETENTION_MS": "1209600000",
+        "ALLOWED_RETENTION_MS": "1209600000",
+        "EXEC_RETENTION_MS": "2592000000",
+        "FILLS_RETENTION_MS": "2592000000",
+        "CANCELS_RETENTION_MS": "1209600000",
+        "DLQ_RETENTION_MS": "2592000000",
+        "PAIRS_RETENTION_MS": "1209600000",
+        "SEGMENT_BYTES": "268435456",
+        "CLEANABLE_RATIO": "0.1"
+      }
+    },
+    {
+      "name": "kafka-ui-exporter",
+      "vars": {
+        "KUI_CLUSTER_NAME": "local",
+        "KAFKA_UI_PORT": "8080",
+        "KAFKA_EXPORTER_PORT": "9308"
+      }
+    },
+    {
+      "name": "postgres",
+      "vars": {
+        "POSTGRES_USER": "trader",
+        "POSTGRES_PASSWORD": "trader",
+        "POSTGRES_DB": "trading",
+        "POSTGRES_PORT": "5432"
+      }
+    },
+    {
+      "name": "observability",
+      "vars": {
+        "PROMETHEUS_PORT": "9090",
+        "GRAFANA_PORT": "3000",
+        "GF_SECURITY_ADMIN_PASSWORD": "admin",
+        "APP_METRICS_HOST": "app-supervisor"
+      }
+    },
+    {
+      "name": "app-supervisor",
+      "vars": {
+        "APP_SUPERVISOR_CONFIG": "configs/process_supervisor.docker.yaml",
+        "LIVE_TRADING": "0",
+        "AUTO_SWITCH_TO_LIVE": "0"
+      }
+    }
+  ]
+}

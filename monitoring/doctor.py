@@ -9,7 +9,7 @@ Modules:
 
 Global Variables:
     - INFRA: Path object pointing to the 'infra' directory, two levels above the current file.
-    - ENV: Dictionary containing environment variables loaded from the '.env' file in the 'infra' directory.
+    - ENV: Dictionary containing environment variables loaded from 'infra/.env.docker' (fallback 'infra/.env').
 
 Functions:
     - http_ok(url): Checks if the given URL returns an HTTP status code in the 2xx or 3xx range.
@@ -33,8 +33,16 @@ import os, subprocess, sys
 from pathlib import Path
 
 INFRA = Path(__file__).resolve().parents[1] / "infra"
+ENV_PATH = INFRA / ".env.docker"
+if not ENV_PATH.exists():
+    fallback = INFRA / ".env"
+    if fallback.exists():
+        ENV_PATH = fallback
+    else:
+        raise SystemExit("Missing infra/.env.docker. Run `make docker-config-sync`.")
+COMPOSE_ENV_FILE = ENV_PATH.name
 ENV = {}
-for ln in (INFRA / ".env").read_text().splitlines():
+for ln in ENV_PATH.read_text(encoding="utf-8").splitlines():
     ln=ln.strip()
     if not ln or ln.startswith("#"): continue
     k,v=ln.split("=",1); ENV[k]=v
@@ -47,8 +55,8 @@ def http_ok(url):
         return False
 
 def main():
-    subprocess.check_call(["docker","compose","ps"], cwd=str(INFRA))
-    for name in ["zookeeper","kafka","postgres","prometheus","grafana","kafka-ui"]:
+    subprocess.check_call(["docker","compose","--env-file",COMPOSE_ENV_FILE,"ps"], cwd=str(INFRA))
+    for name in ["zookeeper","kafka","postgres","prometheus","grafana","kafka-ui","app-supervisor"]:
         try:
             st = subprocess.check_output(["docker","inspect","-f","{{.State.Status}}", name]).decode().strip()
         except subprocess.CalledProcessError:

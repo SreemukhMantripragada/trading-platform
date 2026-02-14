@@ -17,7 +17,7 @@
 | `compute/smoke_fill_producer.py` | Emits synthetic fills to validate accounting and OMS behavior. | Kafka `fills` |
 
 ## Configuration
-- Timeframe list and retention controlled via environment variables (`APP_BARS1S_*`, `BARS*_RETENTION_MS` in `infra/.env`).
+- Timeframe/topic retention defaults come from Docker stack config (`configs/docker_stack.json` -> `infra/.env.docker`).
 - Postgres connection parameters (`POSTGRES_*`) loaded by each process.
 - Topic names default to `bars.{tf}`; override via `IN_TOPIC`, `OUT_TOPIC`, and `TF` environment variables.
 

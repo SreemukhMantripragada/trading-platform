@@ -4,7 +4,7 @@ set -euxo pipefail
 
 # 1) basics
 apt-get update
-apt-get install -y docker.io docker-compose-plugin git python3-venv
+apt-get install -y docker.io docker-compose-plugin git make python3-venv
 
 # 2) checkout your repo (read-only PAT recommended)
 REPO_URL="${REPO_URL:-https://github.com/SreemukhMantripragada/trading-platform.git}"
@@ -15,10 +15,8 @@ if [ ! -d ".git" ]; then
   git clone "$REPO_URL" .
 fi
 
-# 3) docker infra
-cd infra
-docker compose up -d
-cd ..
+# 3) docker infra (single source: configs/docker_stack.json -> infra/.env.docker)
+make up
 
 # 4) python venv for app processes
 python3 -m venv .venv
@@ -26,8 +24,8 @@ python3 -m venv .venv
 pip install -U pip
 pip install -r requirements.txt
 
-# 5) create topics (inside broker container)
-docker exec -e BROKER=kafka:29092 -i kafka bash -s < infra/scripts/create-topics-extended.sh
+# 5) (re)create topics (idempotent)
+make topics
 
 # 6) apply DDL
 docker exec -i postgres psql -U trader -d trading -f infra/postgres/init/08_budget.sql
