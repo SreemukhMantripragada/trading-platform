@@ -18,175 +18,183 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Config for bar builder.
 type Config struct {
 	Kafka       shared.KafkaConfig
 	PG          shared.PostgresConfig
 	Metrics     shared.MetricsConfig
 	Grace       shared.GraceConfig
-	InTopic     string `envconfig:"IN_TOPIC" default:"ticks"`
-	OutTopic    string `envconfig:"OUT_TOPIC" default:"bars.1s"`
-	Workers     int    `envconfig:"BAR1S_WORKERS" default:"8"`
-	QueueSize   int    `envconfig:"BAR1S_QUEUE_SIZE" default:"8000"`
-	FlushTickMS int    `envconfig:"BAR1S_FLUSH_TICK_MS" default:"250"`
+	InTopic     string `envconfig:"IN_TOPIC" default:"bars.1s"`
+	OutTopic    string `envconfig:"OUT_TOPIC" default:"bars.1m"`
+	Workers     int    `envconfig:"BAR1M_WORKERS" default:"8"`
+	QueueSize   int    `envconfig:"BAR1M_QUEUE_SIZE" default:"8000"`
+	FlushTickMS int    `envconfig:"BAR1M_FLUSH_TICK_MS" default:"500"`
 }
 
-// BarState holds mutable bar data per symbol.
-type BarState struct {
-	Sec             int64
-	O, H, L, C      float64
-	Vol             int64
-	NTrades         int64
+type minuteBar struct {
+	Start      int64
+	O, H, L, C float64
+	Vol        int64
+	NTrades    int64
 }
 
-func newBarState(sec int64, px float64, vol int64) BarState {
-	return BarState{
-		Sec:     sec,
-		O:       px,
-		H:       px,
-		L:       px,
-		C:       px,
-		Vol:     vol,
-		NTrades: 1,
+func newMinuteBar(start int64, in shared.Bar1s) minuteBar {
+	return minuteBar{
+		Start:   start,
+		O:       in.O,
+		H:       in.H,
+		L:       in.L,
+		C:       in.C,
+		Vol:     in.Vol,
+		NTrades: in.NTrades,
 	}
 }
 
-func (b *BarState) Update(px float64, vol int64) {
+func (b *minuteBar) Update(in shared.Bar1s) {
 	if b.NTrades == 0 {
-		b.O, b.H, b.L, b.C = px, px, px, px
-		b.Vol = vol
-		b.NTrades = 1
+		b.O = in.O
+		b.H = in.H
+		b.L = in.L
+		b.C = in.C
+		b.Vol = in.Vol
+		b.NTrades = in.NTrades
 		return
 	}
-	if px > b.H {
-		b.H = px
+	if in.H > b.H {
+		b.H = in.H
 	}
-	if px < b.L {
-		b.L = px
+	if in.L < b.L {
+		b.L = in.L
 	}
-	b.C = px
-	b.Vol += vol
-	b.NTrades++
+	b.C = in.C
+	b.Vol += in.Vol
+	b.NTrades += in.NTrades
 }
 
-// Metrics bundle.
 type metrics struct {
-	ticks    prometheus.Counter
-	barsOut  prometheus.Counter
-	openBars prometheus.Gauge
-	flushDur prometheus.Histogram
-	barLat   prometheus.Histogram
+	barsIn    prometheus.Counter
+	barsOut   prometheus.Counter
+	barsWrite prometheus.Counter
+	flushDur  prometheus.Histogram
+	barLat    prometheus.Histogram
+	active    prometheus.Gauge
 }
 
 func newMetrics() metrics {
 	return metrics{
-		ticks:    shared.NewCounter(prometheus.CounterOpts{Name: "bars1s_ticks_total", Help: "Ticks processed"}),
-		barsOut:  shared.NewCounter(prometheus.CounterOpts{Name: "bars1s_published_total", Help: "Bars published"}),
-		openBars: shared.NewGauge(prometheus.GaugeOpts{Name: "bars1s_open_symbols", Help: "Open bar windows"}),
-		flushDur: shared.NewHist(prometheus.HistogramOpts{Name: "bars1s_flush_seconds", Help: "Flush duration", Buckets: []float64{0.001, 0.005, 0.01, 0.02, 0.05, 0.1}}),
-		barLat:   shared.NewHist(prometheus.HistogramOpts{Name: "bars1s_publish_latency_seconds", Help: "Latency close->publish", Buckets: []float64{0.05, 0.1, 0.2, 0.5, 1, 2}}),
+		barsIn:    shared.NewCounter(prometheus.CounterOpts{Name: "bars_1m_input_total", Help: "1m aggregator input bars"}),
+		barsOut:   shared.NewCounter(prometheus.CounterOpts{Name: "bars_1m_published_total", Help: "1m bars published"}),
+		barsWrite: shared.NewCounter(prometheus.CounterOpts{Name: "bars_1m_written_total", Help: "1m bars written"}),
+		flushDur: shared.NewHist(prometheus.HistogramOpts{
+			Name:    "bars_1m_flush_seconds",
+			Help:    "1m flush duration",
+			Buckets: []float64{0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0},
+		}),
+		barLat: shared.NewHist(prometheus.HistogramOpts{
+			Name:    "bars_1m_publish_latency_seconds",
+			Help:    "Latency between 1m bar close and publish",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 20},
+		}),
+		active: shared.NewGauge(prometheus.GaugeOpts{Name: "bars_1m_active_windows", Help: "Open 1m windows"}),
 	}
 }
 
-type barOutput struct {
+type flushRow struct {
 	symbol string
-	bar    BarState
+	bar    minuteBar
 }
 
 type worker struct {
-	id        int
-	cfg       Config
-	db        *shared.PgxDB
-	producer  shared.Producer
-	metrics   metrics
-	openBars  *atomic.Int64
-	log       shared.Logger
-	in        chan shared.Tick
-	bars      map[string]BarState
+	id       int
+	cfg      Config
+	db       *shared.PgxDB
+	producer shared.Producer
+	metrics  metrics
+	active   *atomic.Int64
+	log      shared.Logger
+	in       chan shared.Bar1s
+	state    map[string]minuteBar
 }
 
 func (w *worker) run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer w.producer.Close()
 
-	flushTick := time.Duration(maxInt(w.cfg.FlushTickMS, 50)) * time.Millisecond
+	flushTick := time.Duration(maxInt(w.cfg.FlushTickMS, 100)) * time.Millisecond
 	ticker := time.NewTicker(flushTick)
 	defer ticker.Stop()
 	done := ctx.Done()
 
 	for {
 		select {
-		case tk, ok := <-w.in:
+		case bar, ok := <-w.in:
 			if !ok {
 				w.flushDue(true)
 				return
 			}
-			w.handleTick(tk)
+			w.handleBar(bar)
 		case <-ticker.C:
 			w.flushDue(false)
 		case <-done:
-			// Stop selecting on ctx.Done to avoid busy-looping; channel close will finish drain.
+			// Stop selecting on ctx.Done to avoid busy-looping; channel close will drain.
 			done = nil
 		}
 	}
 }
 
-func (w *worker) handleTick(tk shared.Tick) {
-	if tk.Symbol == "" {
+func (w *worker) handleBar(in shared.Bar1s) {
+	if in.Symbol == "" {
 		return
 	}
-	sec := tk.EventTS / 1_000_000_000
+	w.metrics.barsIn.Inc()
+	sec := in.TS
 	if sec <= 0 {
 		sec = time.Now().Unix()
 	}
-	w.metrics.ticks.Inc()
+	minuteStart := sec - (sec % 60)
 
-	cur, ok := w.bars[tk.Symbol]
+	cur, ok := w.state[in.Symbol]
 	if !ok {
-		w.bars[tk.Symbol] = newBarState(sec, tk.LTP, tk.Vol)
-		w.openBars.Add(1)
-		w.metrics.openBars.Set(float64(w.openBars.Load()))
+		w.state[in.Symbol] = newMinuteBar(minuteStart, in)
+		w.active.Add(1)
+		w.metrics.active.Set(float64(w.active.Load()))
+		return
+	}
+	if cur.Start == minuteStart {
+		cur.Update(in)
+		w.state[in.Symbol] = cur
 		return
 	}
 
-	if sec == cur.Sec {
-		cur.Update(tk.LTP, tk.Vol)
-		w.bars[tk.Symbol] = cur
-		return
-	}
-
-	done := barOutput{symbol: tk.Symbol, bar: cur}
-	w.bars[tk.Symbol] = newBarState(sec, tk.LTP, tk.Vol)
-	w.flushBatch([]barOutput{done})
+	done := flushRow{symbol: in.Symbol, bar: cur}
+	w.state[in.Symbol] = newMinuteBar(minuteStart, in)
+	w.flushBatch([]flushRow{done})
 }
 
 func (w *worker) flushDue(force bool) {
-	if len(w.bars) == 0 {
+	if len(w.state) == 0 {
 		return
 	}
-
 	now := time.Now().Unix()
-	graceSec := int64(w.cfg.Grace.FlushGrace.Seconds())
-	if graceSec < 0 {
-		graceSec = 0
+	grace := int64(w.cfg.Grace.FlushGrace.Seconds())
+	if grace < 0 {
+		grace = 0
 	}
-
-	out := make([]barOutput, 0, len(w.bars))
-	for sym, bar := range w.bars {
-		if !force && now < bar.Sec+graceSec {
+	out := make([]flushRow, 0, len(w.state))
+	for sym, bar := range w.state {
+		if !force && now < bar.Start+60+grace {
 			continue
 		}
-		out = append(out, barOutput{symbol: sym, bar: bar})
-		delete(w.bars, sym)
-		w.openBars.Add(-1)
+		out = append(out, flushRow{symbol: sym, bar: bar})
+		delete(w.state, sym)
+		w.active.Add(-1)
 	}
 	if len(out) > 0 {
 		w.flushBatch(out)
 	}
-	w.metrics.openBars.Set(float64(w.openBars.Load()))
+	w.metrics.active.Set(float64(w.active.Load()))
 }
 
-func (w *worker) flushBatch(batch []barOutput) {
+func (w *worker) flushBatch(batch []flushRow) {
 	if len(batch) == 0 {
 		return
 	}
@@ -195,19 +203,20 @@ func (w *worker) flushBatch(batch []barOutput) {
 	defer cancel()
 
 	if err := w.writeBatch(ctx, batch); err != nil {
-		w.log.Printf("[bars1s] worker=%d db batch write failed: %v", w.id, err)
+		w.log.Printf("[baragg1m] worker=%d db batch write failed: %v", w.id, err)
 		w.metrics.flushDur.Observe(time.Since(start).Seconds())
 		return
 	}
+	w.metrics.barsWrite.Add(float64(len(batch)))
 
 	if w.cfg.OutTopic != "" {
 		records := make([]shared.Record, 0, len(batch))
-		published := make([]barOutput, 0, len(batch))
+		published := make([]flushRow, 0, len(batch))
 		for _, row := range batch {
 			payload := shared.Bar1s{
 				Symbol:  row.symbol,
-				TF:      "1s",
-				TS:      row.bar.Sec,
+				TF:      "1m",
+				TS:      row.bar.Start,
 				O:       row.bar.O,
 				H:       row.bar.H,
 				L:       row.bar.L,
@@ -228,11 +237,11 @@ func (w *worker) flushBatch(batch []barOutput) {
 		}
 		if len(records) > 0 {
 			if err := w.producer.ProduceBatch(ctx, w.cfg.OutTopic, records); err != nil {
-				w.log.Printf("[bars1s] worker=%d kafka publish failed: %v", w.id, err)
+				w.log.Printf("[baragg1m] worker=%d kafka publish failed: %v", w.id, err)
 			} else {
 				w.metrics.barsOut.Add(float64(len(published)))
 				for _, row := range published {
-					w.metrics.barLat.Observe(time.Since(time.Unix(row.bar.Sec, 0)).Seconds())
+					w.metrics.barLat.Observe(time.Since(time.Unix(row.bar.Start+60, 0)).Seconds())
 				}
 			}
 		}
@@ -240,7 +249,7 @@ func (w *worker) flushBatch(batch []barOutput) {
 	w.metrics.flushDur.Observe(time.Since(start).Seconds())
 }
 
-func (w *worker) writeBatch(ctx context.Context, batch []barOutput) error {
+func (w *worker) writeBatch(ctx context.Context, batch []flushRow) error {
 	conn, err := w.db.Acquire()
 	if err != nil {
 		return err
@@ -253,7 +262,7 @@ func (w *worker) writeBatch(ctx context.Context, batch []barOutput) error {
 		pgBatch.Queue(
 			upsertSQL,
 			row.symbol,
-			bar.Sec,
+			bar.Start,
 			bar.O,
 			bar.H,
 			bar.L,
@@ -279,11 +288,11 @@ func startWorkers(
 	db *shared.PgxDB,
 	m metrics,
 	log shared.Logger,
-	openBars *atomic.Int64,
-) ([]chan shared.Tick, func(), error) {
+	active *atomic.Int64,
+) ([]chan shared.Bar1s, func(), error) {
 	workers := maxInt(cfg.Workers, 1)
 	queueSize := maxInt(cfg.QueueSize, 1)
-	chans := make([]chan shared.Tick, workers)
+	chans := make([]chan shared.Bar1s, workers)
 	var wg sync.WaitGroup
 
 	for i := 0; i < workers; i++ {
@@ -295,7 +304,7 @@ func startWorkers(
 			wg.Wait()
 			return nil, nil, err
 		}
-		ch := make(chan shared.Tick, queueSize)
+		ch := make(chan shared.Bar1s, queueSize)
 		chans[i] = ch
 		w := &worker{
 			id:       i,
@@ -303,10 +312,10 @@ func startWorkers(
 			db:       db,
 			producer: p,
 			metrics:  m,
-			openBars: openBars,
+			active:   active,
 			log:      log,
 			in:       ch,
-			bars:     make(map[string]BarState),
+			state:    make(map[string]minuteBar),
 		}
 		wg.Add(1)
 		go w.run(ctx, &wg)
@@ -337,23 +346,22 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// SQL upsert same as Python.
 const upsertSQL = `
-INSERT INTO bars_1s(symbol, ts, o, h, l, c, vol, n_trades)
+INSERT INTO bars_1m(symbol, ts, o, h, l, c, vol, n_trades)
 VALUES($1, to_timestamp($2), $3, $4, $5, $6, $7, $8)
 ON CONFLICT(symbol, ts) DO UPDATE
-SET o=EXCLUDED.o,
-    h=EXCLUDED.h,
-    l=EXCLUDED.l,
-    c=EXCLUDED.c,
-    vol=bars_1s.vol + EXCLUDED.vol,
-    n_trades=bars_1s.n_trades + EXCLUDED.n_trades;
+SET o = EXCLUDED.o,
+    h = GREATEST(bars_1m.h, EXCLUDED.h),
+    l = LEAST(bars_1m.l, EXCLUDED.l),
+    c = EXCLUDED.c,
+    vol = bars_1m.vol + EXCLUDED.vol,
+    n_trades = bars_1m.n_trades + EXCLUDED.n_trades;
 `
 
 func main() {
 	var cfg Config
 	envconfig.MustProcess("", &cfg)
-	logger := shared.NewLogger("bars1s")
+	logger := shared.NewLogger("baragg1m")
 	m := newMetrics()
 	ms := shared.NewMetricsServer(cfg.Metrics.Port)
 	ms.Start()
@@ -376,15 +384,15 @@ func main() {
 	}
 	defer db.Close()
 
-	var openBars atomic.Int64
-	workerChans, stopWorkers, err := startWorkers(ctx, cfg, db, m, logger, &openBars)
+	var active atomic.Int64
+	workerChans, stopWorkers, err := startWorkers(ctx, cfg, db, m, logger, &active)
 	if err != nil {
 		logger.Fatalf("worker init: %v", err)
 	}
 	defer stopWorkers()
 
 	logger.Printf(
-		"running builder in=%s out=%s workers=%d queue=%d",
+		"running 1m aggregator in=%s out=%s workers=%d queue=%d",
 		cfg.InTopic,
 		cfg.OutTopic,
 		maxInt(cfg.Workers, 1),
@@ -401,20 +409,20 @@ loop:
 			continue
 		}
 
-		var tk shared.Tick
-		if err := json.Unmarshal(msg.Value, &tk); err != nil {
+		var bar shared.Bar1s
+		if err := json.Unmarshal(msg.Value, &bar); err != nil {
 			_ = shared.CommitSingle(consumer, msg)
 			continue
 		}
-		idx := symbolShard(tk.Symbol, len(workerChans))
+		idx := symbolShard(bar.Symbol, len(workerChans))
 		select {
-		case workerChans[idx] <- tk:
+		case workerChans[idx] <- bar:
 		case <-ctx.Done():
 			break loop
 		}
 		if err := shared.CommitSingle(consumer, msg); err != nil {
-			logger.Printf("[bars1s] commit failed: %v", err)
+			logger.Printf("[baragg1m] commit failed: %v", err)
 		}
 	}
-	logger.Printf("builder shutdown: draining worker queues")
+	logger.Printf("1m aggregator shutdown: draining worker queues")
 }
