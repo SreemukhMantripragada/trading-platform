@@ -1,11 +1,14 @@
-.PHONY: help up down reset ps logs doctor topics docker-config-list docker-config-sync metrics-list metrics-sync go-build legacy
+.PHONY: help up down reset ps logs doctor topics docker-config-list docker-config-sync metrics-list metrics-sync go-build perf-test legacy
 .DEFAULT_GOAL := help
 
 DOCKER_STACK_REGISTRY ?= configs/docker_stack.json
 DOCKER_STACK_ENV ?= infra/.env.docker
 METRICS_REGISTRY ?= configs/metrics_endpoints.json
 METRICS_TARGETS ?= infra/prometheus/targets_apps.json
+OBS_DASHBOARD ?= infra/grafana/dashboards/observability/platform_control_plane.json
 LEGACY_MAKEFILE ?= Makefile.legacy
+GO_BUILD_OS ?= linux
+GO_BUILD_ARCH ?= $(shell uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
 DOCKER_COMPOSE_CMD = cd infra && docker compose --env-file $(notdir $(DOCKER_STACK_ENV))
 
 help:
@@ -20,8 +23,9 @@ help:
 	@echo "  make docker-config-list"
 	@echo "  make docker-config-sync"
 	@echo "  make metrics-list"
-	@echo "  make metrics-sync"
-	@echo "  make go-build          # build Go binaries in Docker"
+	@echo "  make metrics-sync      # refresh Prom targets + observability dashboard"
+	@echo "  make go-build          # build Go binaries via compose tools profile"
+	@echo "  make perf-test         # infra-up benchmark + report (default: full paper-flow)"
 	@echo ""
 	@echo "Legacy targets are available via: make legacy TARGET=<name>"
 
@@ -62,15 +66,43 @@ metrics-list:
 metrics-sync: docker-config-sync
 	@set -a; . $(DOCKER_STACK_ENV); set +a; \
 	python3 tools/metrics_catalog.py --registry $(METRICS_REGISTRY) --host "$${APP_METRICS_HOST:-host.docker.internal}" --check --write-prom-targets $(METRICS_TARGETS)
+	python3 tools/generate_grafana_observability.py --registry $(METRICS_REGISTRY) --out $(OBS_DASHBOARD)
 
-# Build Go ingestion/aggregation binaries in a container (no host Go needed)
-go-build:
-	docker build -f infra/docker/go-builder.Dockerfile -t trading-go-builder . && \
-	docker create --name trading-go-builder-temp trading-go-builder && \
-	docker cp trading-go-builder-temp:/out/ws_bridge go/bin/ws_bridge && \
-	docker cp trading-go-builder-temp:/out/bar_builder_1s go/bin/bar_builder_1s && \
-	docker cp trading-go-builder-temp:/out/bar_aggregator_multi go/bin/bar_aggregator_multi && \
-	docker rm trading-go-builder-temp
+# Build Go ingestion/aggregation binaries inside the compose stack tool profile.
+go-build: docker-config-sync
+	cd infra && GO_BUILD_OS=$(GO_BUILD_OS) GO_BUILD_ARCH=$(GO_BUILD_ARCH) docker compose --env-file $(notdir $(DOCKER_STACK_ENV)) --profile tools build go-builder
+	cd infra && GO_BUILD_OS=$(GO_BUILD_OS) GO_BUILD_ARCH=$(GO_BUILD_ARCH) docker compose --env-file $(notdir $(DOCKER_STACK_ENV)) --profile tools run --rm go-builder
+
+perf-test: docker-config-sync metrics-sync
+	$(DOCKER_COMPOSE_CMD) up -d zookeeper kafka kafka-topics-init postgres prometheus grafana kafka-ui kafka-exporter
+	python3 tools/pipeline_perf_compare.py \
+		--scenario "$${PERF_SCENARIO:-paper-flow}" \
+		--loads "$${LOADS:-50,200,500}" \
+		--stage-seconds "$${STAGE_SEC:-180}" \
+		--warmup-seconds "$${WARMUP_SEC:-20}" \
+		--sample-seconds "$${SAMPLE_SEC:-5}" \
+		--sim-base-tps "$${SIM_BASE_TPS:-5}" \
+		--sim-hot-tps "$${SIM_HOT_TPS:-1000}" \
+		--sim-hot-symbol-pct "$${SIM_HOT_SYMBOL_PCT:-0.002}" \
+		--sim-hot-rotate-sec "$${SIM_HOT_ROTATE_SEC:-15}" \
+		--sim-step-ms "$${SIM_STEP_MS:-100}" \
+		--go-produce-workers "$${GO_PRODUCE_WORKERS:-16}" \
+		--go-produce-queue "$${GO_PRODUCE_QUEUE:-20000}" \
+		--go-max-batch "$${GO_MAX_BATCH:-1024}" \
+		--go-batch-flush-ms "$${GO_BATCH_FLUSH_MS:-20}" \
+		--go-bar1s-workers "$${GO_BAR1S_WORKERS:-8}" \
+		--go-bar1s-queue "$${GO_BAR1S_QUEUE:-8000}" \
+		--go-bar1s-flush-ms "$${GO_BAR1S_FLUSH_MS:-250}" \
+		--go-bar1m-workers "$${GO_BAR1M_WORKERS:-8}" \
+		--go-bar1m-queue "$${GO_BAR1M_QUEUE:-8000}" \
+		--go-bar1m-flush-ms "$${GO_BAR1M_FLUSH_MS:-500}" \
+		--go-baragg-workers "$${GO_BARAGG_WORKERS:-8}" \
+		--go-baragg-queue "$${GO_BARAGG_QUEUE:-8000}" \
+		--go-baragg-flush-ms "$${GO_BARAGG_FLUSH_MS:-500}" \
+		--pair-timeframe "$${PAIR_TF:-1}" \
+		--pair-lookback "$${PAIR_LOOKBACK:-4}" \
+		--pair-count "$${PAIR_COUNT:-0}" \
+		--pair-min-ready "$${PAIR_MIN_READY:-2}"
 
 legacy:
 	@test -n "$(TARGET)" || (echo "Usage: make legacy TARGET=<target-name>" && exit 1)

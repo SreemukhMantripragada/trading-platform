@@ -141,6 +141,30 @@ services:
       - ..:/app
     networks: [ core ]
 
+  go-builder:
+    profiles: [ "tools" ]
+    build:
+      context: ..
+      dockerfile: infra/docker/go-builder.Dockerfile
+      args:
+        TARGETOS: ${GO_BUILD_OS:-linux}
+        TARGETARCH: ${GO_BUILD_ARCH:-amd64}
+    working_dir: /workspace
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -e
+        mkdir -p /workspace/go/bin
+        cp /out/ws_bridge /workspace/go/bin/ws_bridge
+        cp /out/bar_builder_1s /workspace/go/bin/bar_builder_1s
+        cp /out/bar_aggregator_1m /workspace/go/bin/bar_aggregator_1m
+        cp /out/bar_aggregator_multi /workspace/go/bin/bar_aggregator_multi
+        chmod +x /workspace/go/bin/ws_bridge /workspace/go/bin/bar_builder_1s /workspace/go/bin/bar_aggregator_1m /workspace/go/bin/bar_aggregator_multi
+    volumes:
+      - ..:/workspace
+    networks: [ core ]
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus

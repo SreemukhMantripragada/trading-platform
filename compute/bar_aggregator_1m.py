@@ -82,6 +82,11 @@ ON CONFLICT(symbol, ts) DO UPDATE SET
 BATCH_FLUSH_SEC = Histogram("bars_1m_flush_seconds", "1m flush time", buckets=(0.005,0.01,0.02,0.05,0.1,0.2,0.5,1.0))
 BARS_WRITTEN    = Counter("bars_1m_written_total", "1m bars written")
 BARS_PUBLISHED  = Counter("bars_1m_published_total", "1m bars published")
+BAR_LATENCY     = Histogram(
+    "bars_1m_publish_latency_seconds",
+    "Latency between 1m bar close and publish",
+    buckets=(0.5, 1, 2, 5, 10, 20, 40),
+)
 
 class MBar:
     __slots__=("start","o","h","l","c","vol","n")
@@ -138,6 +143,7 @@ async def main():
                            "o": mb.o, "h": mb.h, "l": mb.l, "c": mb.c,
                            "vol": mb.vol, "n_trades": mb.n}
                 await producer.send_and_wait(OUT_TOPIC, json.dumps(payload).encode(), key=sym.encode())
+                BAR_LATENCY.observe(max(0.0, time.time() - (mb.start + 60)))
             BARS_PUBLISHED.inc(len(batch))
         await _do(to_flush)
 

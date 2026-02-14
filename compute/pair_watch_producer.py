@@ -71,6 +71,7 @@ except ImportError:  # pragma: no cover - optional dependency
 BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
 OUT_TOPIC = os.getenv("OUT_TOPIC", "pairs.signals")
 SOURCE_MODE = os.getenv("PAIRWATCH_SOURCE_MODE", "kite_poll").lower()
+TOPIC_PREFIX = os.getenv("PAIRWATCH_TOPIC_PREFIX", "bars").strip() or "bars"
 POLL_BAR_COUNT = int(os.getenv("PAIRWATCH_POLL_BAR_COUNT", "3"))
 MIN_POLL_WAIT = float(os.getenv("PAIRWATCH_MIN_POLL_WAIT_SEC", "0.3"))
 REST_RPS = float(os.getenv("PAIRWATCH_REST_RPS", "3.0"))
@@ -94,12 +95,14 @@ METRICS_PORT = int(os.getenv("PAIRWATCH_METRICS_PORT", os.getenv("METRICS_PORT",
 DEFAULT_FLATTEN_HHMM = os.getenv("PAIRWATCH_FLATTEN_HHMM", "15:15")
 DEFAULT_LOOKBACK = int(os.getenv("PAIRWATCH_LOOKBACK_DEFAULT", "120"))
 LOOKBACK_GRID_DEFAULTS: Dict[int, List[int]] = {
+    1: [4, 6, 8],
     3: [60, 90, 120],
     5: [90, 120, 150],
     15: [120, 180, 240],
 }
 
 TABLE_BY_TF = {
+    1: "bars_1m",
     3: "bars_3m",
     5: "bars_5m",
     15: "bars_15m",
@@ -316,7 +319,7 @@ def _update_pair_gauges(
 
 
 def topic_for_tf(tf: int) -> str:
-    return f"bars.{tf}m"
+    return f"{TOPIC_PREFIX}.{tf}m"
 
 
 def parse_symbol_pair(symbol: str) -> Tuple[str, str]:
@@ -991,6 +994,14 @@ def hydrate_engines_kite(
     return engines, latest_bar
 
 
+def build_cold_engines(pairs: List[PairSpec]) -> Tuple[Dict[str, PairEngine], Dict[Tuple[str, int], Tuple[int, float]]]:
+    engines: Dict[str, PairEngine] = {}
+    latest_bar: Dict[Tuple[str, int], Tuple[int, float]] = {}
+    for spec in pairs:
+        engines[spec.pair_id] = PairEngine(spec)
+    return engines, latest_bar
+
+
 # --- main -------------------------------------------------------------------
 
 
@@ -1004,12 +1015,18 @@ async def main():
     topics = sorted({topic_for_tf(spec.tf) for spec in pairs})
     print(f"[pairwatch] monitoring {len(pairs)} pairs across topics: {topics}")
 
-    kite = KiteWrap()
-    kite.connect()
-    engines, latest_bar = hydrate_engines_kite(kite, pairs)
-    if not engines:
-        print("[pairwatch] kite hydration failed; exiting.")
-        return
+    hydrate_source = (os.getenv("PAIR_HYDRATE_SOURCE", "kite") or "kite").strip().lower()
+    if hydrate_source in {"none", "off", "disabled", "cold", "skip"}:
+        print("[pairwatch] hydration disabled; starting cold engines")
+        engines, latest_bar = build_cold_engines(pairs)
+        kite = KiteWrap()
+    else:
+        kite = KiteWrap()
+        kite.connect()
+        engines, latest_bar = hydrate_engines_kite(kite, pairs)
+        if not engines:
+            print("[pairwatch] kite hydration failed; exiting.")
+            return
 
     exporter = StateExporter(engines, latest_bar)
     await exporter.start()
