@@ -10,12 +10,15 @@ Run:
 """
 import os, csv, json, time, queue, threading, asyncio, ujson as ujson
 from datetime import datetime, timezone
+from pathlib import Path
 
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from aiokafka import AIOKafkaProducer
 from kiteconnect import KiteTicker, KiteConnect, exceptions as kz_ex
+import yaml
 
 TOKENS_CSV=os.getenv("ZERODHA_TOKENS_CSV","configs/tokens.csv")
+PAIRS_YAML=os.getenv("PAIRS_NEXT_DAY","configs/pairs_next_day.yaml")
 API_KEY=os.getenv("KITE_API_KEY")
 TOKEN_FILE=os.getenv("ZERODHA_TOKEN_FILE","ingestion/auth/token.json")
 BROKER=os.getenv("KAFKA_BROKER","localhost:9092")
@@ -37,14 +40,41 @@ TICK_LATENCY = Histogram(
 )
 WS_EVENTS = Counter("zerodha_ws_events_total", "Websocket lifecycle events", ["event"])
 
+def load_pair_symbols(yaml_path: str) -> set:
+    path = Path(yaml_path)
+    if not path.exists():
+        return set()
+    try:
+        doc = yaml.safe_load(path.read_text()) or {}
+    except Exception:
+        return set()
+    symbols = set()
+    for row in doc.get("selections", []) or []:
+        sym = str(row.get("symbol") or "")
+        if "-" not in sym:
+            continue
+        leg_a, leg_b = [s.strip().upper() for s in sym.split("-", 1)]
+        if leg_a:
+            symbols.add(leg_a)
+        if leg_b:
+            symbols.add(leg_b)
+    return symbols
+
 def load_tokens():
+    watch_symbols = load_pair_symbols(PAIRS_YAML)
+    if not watch_symbols:
+        print(f"[ws] warning: could not read {PAIRS_YAML}; subscribing to all tokens")
     out=[]; map_ts={}
     with open(TOKENS_CSV) as f:
         r=csv.DictReader(f)
         for row in r:
             if (row.get("subscribe","1") or "1").strip().lower() in ("1","y","yes","true"):
-                tok=int(row["instrument_token"]); sym=row.get("tradingsymbol") or str(tok)
-                out.append(tok); map_ts[tok]=sym
+                sym=row.get("tradingsymbol") or ""
+                sym_clean = sym.strip().upper()
+                if watch_symbols and sym_clean not in watch_symbols:
+                    continue
+                tok=int(row["instrument_token"]); sym_final=sym or str(tok)
+                out.append(tok); map_ts[tok]=sym_final
     if not out: raise SystemExit("No tokens in configs/tokens.csv")
     return out, map_ts
 

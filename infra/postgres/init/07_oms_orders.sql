@@ -1,22 +1,13 @@
--- OMS Orders & Audit (renamed to 'oms_orders' to avoid collision)
+-- OMS Orders & Audit (augment base orders table instead of creating a duplicate)
 
-CREATE TABLE IF NOT EXISTS oms_orders (
-  client_order_id  text PRIMARY KEY,
-  ts               timestamptz NOT NULL,
-  symbol           text        NOT NULL,
-  side             text        NOT NULL,   -- BUY/SELL/EXIT
-  qty              bigint      NOT NULL,
-  order_type       text        NOT NULL,
-  strategy         text        NOT NULL,
-  risk_bucket      text        NOT NULL,
-  status           text        NOT NULL,   -- NEW/ACK/PARTIAL/FILLED/CANCELED/REJECTED
-  last_update      timestamptz NOT NULL DEFAULT now(),
-  extra            jsonb,
-  audit_hash       text        NOT NULL
-);
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS last_update timestamptz NOT NULL DEFAULT now();
 
-CREATE INDEX IF NOT EXISTS oms_orders_status_idx ON oms_orders(status);
-CREATE INDEX IF NOT EXISTS oms_orders_symbol_idx ON oms_orders(symbol);
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS audit_hash text;
+
+CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);
+CREATE INDEX IF NOT EXISTS orders_symbol_idx ON orders(symbol);
 
 CREATE TABLE IF NOT EXISTS order_audit (
   id      bigserial PRIMARY KEY,

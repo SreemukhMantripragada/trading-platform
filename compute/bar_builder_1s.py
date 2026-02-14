@@ -64,7 +64,8 @@ class Bar:
         self.vol += int(vol); self.n_trades += 1
 
 async def ensure_schema(pool):
-    async with pool.acquire() as con:   con.execute(DDL)
+    async with pool.acquire() as con:
+        await con.execute(DDL)
 
 async def main():
     start_http_server(METRICS_PORT)

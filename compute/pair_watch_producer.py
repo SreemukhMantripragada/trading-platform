@@ -70,6 +70,10 @@ except ImportError:  # pragma: no cover - optional dependency
 
 BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
 OUT_TOPIC = os.getenv("OUT_TOPIC", "pairs.signals")
+SOURCE_MODE = os.getenv("PAIRWATCH_SOURCE_MODE", "kite_poll").lower()
+POLL_BAR_COUNT = int(os.getenv("PAIRWATCH_POLL_BAR_COUNT", "3"))
+MIN_POLL_WAIT = float(os.getenv("PAIRWATCH_MIN_POLL_WAIT_SEC", "0.3"))
+REST_RPS = float(os.getenv("PAIRWATCH_REST_RPS", "3.0"))
 PAIRS_NEXT_DAY = os.getenv("PAIRS_NEXT_DAY", "configs/pairs_next_day.yaml")
 
 KITE_API_KEY = os.getenv("KITE_API_KEY", "r8q3kff9iwca0aw2")
@@ -80,12 +84,20 @@ DEFAULT_EXIT_Z = float(os.getenv("Z_EXIT", "0.5"))
 DEFAULT_STOP_Z = float(os.getenv("Z_STOP", "3.0"))
 DEFAULT_MAX_HOLD_MIN = float(os.getenv("MAX_HOLD_MIN_DEFAULT", "300"))
 HYDRATE_LOOKBACK_MULT = int(os.getenv("HYDRATE_LOOKBACK_MULT", "3"))
+MIN_CANDLES_PER_PAIR = int(os.getenv("PAIRWATCH_MIN_CANDLES", "150"))
+HYDRATE_LOOKBACK_MULT_RUNTIME = HYDRATE_LOOKBACK_MULT * 2
 MIN_READY_POINTS = int(os.getenv("PAIR_MIN_READY_POINTS", "60"))
 WARMUP_CANDLES = int(os.getenv("PAIRS_WARMUP_CANDLES", "600"))
 KITE_THROTTLE_SEC = float(os.getenv("KITE_THROTTLE_SEC", "0.2"))
 ENTRY_RECENT_BARS_DEFAULT = int(os.getenv("PAIR_ENTRY_RECENT_BARS", "2"))
 METRICS_PORT = int(os.getenv("PAIRWATCH_METRICS_PORT", os.getenv("METRICS_PORT", "8114")))
 DEFAULT_FLATTEN_HHMM = os.getenv("PAIRWATCH_FLATTEN_HHMM", "15:15")
+DEFAULT_LOOKBACK = int(os.getenv("PAIRWATCH_LOOKBACK_DEFAULT", "120"))
+LOOKBACK_GRID_DEFAULTS: Dict[int, List[int]] = {
+    3: [60, 90, 120],
+    5: [90, 120, 150],
+    15: [120, 180, 240],
+}
 
 TABLE_BY_TF = {
     3: "bars_3m",
@@ -96,11 +108,35 @@ TABLE_BY_TF = {
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+class RateLimiter:
+    def __init__(self, rate_per_sec: float):
+        self.interval = 1.0 / max(rate_per_sec, 1e-6)
+        self._lock = asyncio.Lock()
+        self._next = 0.0
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = time.perf_counter()
+            wait = self._next - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+                now = time.perf_counter()
+            self._next = now + self.interval
+
+
+REST_RATE_LIMITER = RateLimiter(REST_RPS)
+
+
 def parse_flatten_hhmm(value: Optional[str]) -> Optional[int]:
-    if not value:
+    if value is None:
         return None
     try:
-        hh, mm = value.split(":")
+        norm = str(value).strip()
+        if not norm:
+            return None
+        if norm.lower() in {"none", "off", "disable", "disabled", "skip"}:
+            return None
+        hh, mm = norm.split(":")
         h = max(0, min(23, int(hh)))
         m = max(0, min(59, int(mm)))
         return h * 60 + m
@@ -320,6 +356,49 @@ def zscore(values: Deque[float]) -> Optional[float]:
     return (values[-1] - mean) / sd
 
 
+async def _fetch_latest_bar_kite(
+    kite: "KiteWrap",
+    symbol: str,
+    tf: int,
+    count: int,
+) -> Optional[Tuple[int, float]]:
+    await REST_RATE_LIMITER.acquire()
+    if not kite.k:
+        return None
+    tok = _instrument_token(symbol)
+    if not tok:
+        print(f"[pairwatch] missing instrument token for {symbol}; skip")
+        return None
+    start, end = _kite_time_range(tf, count)
+
+    def _fetch():
+        return kite.k.historical_data(
+            instrument_token=tok,
+            from_date=start,
+            to_date=end,
+            interval=_kite_interval(tf),
+            continuous=False,
+            oi=False,
+        )
+
+    try:
+        data = await asyncio.to_thread(_fetch)
+    except Exception as exc:
+        print(f"[pairwatch] kite poll failed for {symbol}@{tf}m: {exc}")
+        return None
+    if not data:
+        return None
+    row = data[-1]
+    try:
+        ts = to_unix_ts(row.get("date"))
+        px = float(row.get("close") or 0.0)
+    except Exception:
+        return None
+    if px <= 0 or ts <= 0:
+        return None
+    return ts, px
+
+
 # --- data structures --------------------------------------------------------
 
 
@@ -344,12 +423,6 @@ class PairSpec:
     flatten_cutoff_min: Optional[int] = None
 
 
-@dataclass
-class PendingCross:
-    direction: int  # +1 => z crossed below -entry (long spread), -1 => z crossed above +entry (short spread)
-    bars_since: int = 0
-
-
 class PairEngine:
     def __init__(self, spec: PairSpec):
         self.spec = spec
@@ -363,7 +436,6 @@ class PairEngine:
         self.entry_reason: Optional[str] = None
         self.last_beta: float = spec.fixed_beta
         self.last_z: Optional[float] = None
-        self.pending_cross: Optional[PendingCross] = None
         history_len = max(spec.lookback * 6, 360)
         self.z_history: Deque[Tuple[int, float]] = deque(maxlen=history_len)
         self.flatten_cutoff_min = spec.flatten_cutoff_min
@@ -381,38 +453,6 @@ class PairEngine:
         if beta is None or not math.isfinite(beta):
             return self.spec.fixed_beta
         return beta
-
-    def _refresh_pending_cross(self, prev_z: Optional[float], z: float, entry_z: float, beyond_flatten: bool) -> None:
-        if beyond_flatten:
-            self.pending_cross = None
-        # even if flattened, we still want to clear and exit early
-        if beyond_flatten:
-            return
-        max_bars = max(0, self.spec.entry_fresh_bars)
-        if prev_z is not None:
-            crossed_upper = prev_z < entry_z <= z
-            crossed_lower = prev_z > -entry_z >= z
-            if crossed_upper:
-                self.pending_cross = PendingCross(direction=-1, bars_since=0)
-                return
-            if crossed_lower:
-                self.pending_cross = PendingCross(direction=1, bars_since=0)
-                return
-        pending = self.pending_cross
-        if not pending:
-            return
-        if pending.direction == -1:
-            if z < entry_z:
-                self.pending_cross = None
-                return
-        else:
-            if z > -entry_z:
-                self.pending_cross = None
-                return
-        if pending.bars_since > max_bars:
-            self.pending_cross = None
-            return
-        pending.bars_since += 1
 
     def process(self, ts: int, px_a: float, px_b: float) -> Optional[Dict[str, Any]]:
         if px_a <= 0 or px_b <= 0:
@@ -434,6 +474,13 @@ class PairEngine:
         self.last_z = z
         if z is not None:
             self.z_history.append((ts, z))
+            prev_str = f"{prev_z:.3f}" if prev_z is not None else "NA"
+            ts_dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(IST)
+            ts_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")
+            print(
+                f"[pairwatch] {self.spec.symbol} tf={self.spec.tf}m ts={ts_str} z={z:.3f} prev={prev_str}",
+                flush=True,
+            )
         if z is None or not self.ready():
             return None
         flatten_cutoff = self.flatten_cutoff_min
@@ -446,26 +493,23 @@ class PairEngine:
         else:
             beyond_flatten = False
         entry_z = self.spec.entry_z
-        self._refresh_pending_cross(prev_z, z, entry_z, beyond_flatten)
-
         exit_z = self.spec.exit_z
         stop_z = self.spec.stop_z
         max_hold_sec = self.spec.max_hold_sec
 
         if self.position == 0:
             if beyond_flatten:
-                self.pending_cross = None
                 return None
-            pending = self.pending_cross
-            max_fresh = self.spec.entry_fresh_bars
-            if pending and pending.bars_since > max_fresh:
-                self.pending_cross = None
-                pending = None
-            if pending and pending.direction == -1 and z >= entry_z:
-                self.pending_cross = None
-                self.position = -1  # short spread -> SELL A, BUY B
+            if prev_z is None:
+                return None
+            # Enter when z-score re-enters the entry band from outside.
+            crossed_short = prev_z > entry_z and z <= entry_z
+            crossed_long = prev_z < -entry_z and z >= -entry_z
+            if crossed_short:
+                self.position = -1
                 self.entry_ts = ts
-                self.entry_reason = f"fresh_upper_{pending.bars_since}"
+                self.entry_reason = f"reenter_short_prev_{prev_z:.2f}"
+                _trigger_sound()
                 return {
                     "action": "ENTER_SHORT_A_LONG_B",
                     "sideA": "SELL",
@@ -476,11 +520,11 @@ class PairEngine:
                     "pxB": px_b,
                     "reason": self.entry_reason,
                 }
-            if pending and pending.direction == 1 and z <= -entry_z:
-                self.pending_cross = None
-                self.position = +1  # long spread -> BUY A, SELL B
+            if crossed_long:
+                self.position = +1
                 self.entry_ts = ts
-                self.entry_reason = f"fresh_lower_{pending.bars_since}"
+                self.entry_reason = f"reenter_long_prev_{prev_z:.2f}"
+                _trigger_sound()
                 return {
                     "action": "ENTER_LONG_A_SHORT_B",
                     "sideA": "BUY",
@@ -609,12 +653,7 @@ class StateExporter:
 
     def _engine_state(self, engine: PairEngine) -> Dict[str, Any]:
         spec = engine.spec
-        pending = engine.pending_cross
-        pending_state: Optional[Dict[str, Any]]
-        if pending:
-            pending_state = {"direction": pending.direction, "bars_since": pending.bars_since}
-        else:
-            pending_state = None
+        pending_state: Optional[Dict[str, Any]] = None
 
         history = [{"ts": int(ts), "z": self._safe_float(z)} for ts, z in list(engine.z_history)]
         latest_a = self._latest_price(spec.leg_a, spec.tf)
@@ -702,19 +741,40 @@ def load_pairs(path: str) -> List[PairSpec]:
             print(f"[pairwatch] skip {leg_a}-{leg_b}: unsupported tf={tf}")
             continue
         params = row.get("params") or {}
-        lookback = int(params.get("lookback") or 120)
+        lookback_param = params.get("lookback")
+        if lookback_param is None:
+            tf_defaults = LOOKBACK_GRID_DEFAULTS.get(tf)
+            if tf_defaults:
+                mid_idx = len(tf_defaults) // 2
+                lookback = int(tf_defaults[mid_idx])
+            else:
+                lookback = DEFAULT_LOOKBACK
+        else:
+            try:
+                lookback = int(float(lookback_param))
+            except Exception:
+                lookback = DEFAULT_LOOKBACK
+        lookback = max(1, lookback)
         entry_z = float(params.get("entry_z", DEFAULT_ENTRY_Z))
         exit_z = float(params.get("exit_z", DEFAULT_EXIT_Z))
         stop_z = float(params.get("stop_z", DEFAULT_STOP_Z))
         beta_mode = str(params.get("beta_mode", "dynamic")).lower()
-        beta_lookback = int(params.get("beta_lookback", lookback))
+        beta_lb_param = params.get("beta_lookback")
+        try:
+            beta_lookback = int(float(beta_lb_param)) if beta_lb_param is not None else lookback
+        except Exception:
+            beta_lookback = lookback
         fixed_beta = float(params.get("fixed_beta", 1.0))
         entry_fresh_bars = int(params.get("entry_fresh_bars", ENTRY_RECENT_BARS_DEFAULT))
         max_hold_min = params.get("max_hold_min")
         if max_hold_min is None:
             stats = row.get("stats") or {}
             avg_hold = float(stats.get("avg_hold_min", DEFAULT_MAX_HOLD_MIN))
-            max_hold_min = max(avg_hold * 2.0, DEFAULT_MAX_HOLD_MIN)
+            dynamic_floor = max(avg_hold * 2.0, DEFAULT_MAX_HOLD_MIN)
+            if tf >= 60:
+                # ensure swing bars can hold through at least a full trading day unless overridden in config
+                dynamic_floor = max(dynamic_floor, float(tf) * 24.0)
+            max_hold_min = dynamic_floor
         max_hold_sec = int(float(max_hold_min) * 60.0)
         flatten_hhmm = row.get("flatten_hhmm") or params.get("flatten_hhmm") or DEFAULT_FLATTEN_HHMM
         flatten_cutoff = parse_flatten_hhmm(str(flatten_hhmm))
@@ -761,14 +821,25 @@ def to_unix_ts(val: Any) -> int:
 
 
 def _kite_interval(tf: int) -> str:
-    return {3: "3minute", 5: "5minute", 15: "15minute"}[int(tf)]
+    tf_map = {
+        1: "minute",
+        3: "3minute",
+        5: "5minute",
+        10: "10minute",
+        15: "15minute",
+        30: "30minute",
+        60: "60minute",
+    }
+    key = int(tf)
+    if key not in tf_map:
+        raise KeyError(f"Unsupported timeframe for Kite hydration: {tf}")
+    return tf_map[key]
 
 
 def _kite_time_range(tf: int, count: int) -> Tuple[datetime, datetime]:
     end_ist = datetime.now(tz=IST)
     span = count * tf + 2 * tf
     start_ist = end_ist - timedelta(minutes=span)
-    start_ist -= timedelta(days=1)
     return start_ist.astimezone(timezone.utc), end_ist.astimezone(timezone.utc)
 
 
@@ -828,8 +899,8 @@ def fetch_kite_series(kite: KiteWrap, symbol: str, tf: int, count: int) -> List[
         return []
     start_utc, end_utc = _kite_time_range(tf, max(count, WARMUP_CANDLES))
     try:
-        if KITE_THROTTLE_SEC > 0:
-            time.sleep(KITE_THROTTLE_SEC)
+        delay = max(KITE_THROTTLE_SEC * 2.0, 0.2)
+        time.sleep(delay)
         data = kite.k.historical_data(
             instrument_token=tok,
             from_date=start_utc,
@@ -887,10 +958,10 @@ def hydrate_engines_kite(
 
     cache: Dict[Tuple[int, str], List[Tuple[int, float]]] = {}
     for tf, symbols in symbols_by_tf.items():
-        limit = max(
-            max(spec.lookback for spec in pairs_by_tf[tf]) * HYDRATE_LOOKBACK_MULT,
-            WARMUP_CANDLES,
-        )
+        baseline = max(spec.lookback for spec in pairs_by_tf[tf]) * HYDRATE_LOOKBACK_MULT_RUNTIME
+        if tf == 15:
+            baseline = max(baseline, MIN_CANDLES_PER_PAIR)
+        limit = max(baseline, WARMUP_CANDLES)
         for sym in symbols:
             cache[(tf, sym)] = fetch_kite_series(kite, sym, tf, limit)
 
@@ -949,25 +1020,7 @@ async def main():
         symbol_map[(spec.leg_a, spec.tf)].append(engine)
         symbol_map[(spec.leg_b, spec.tf)].append(engine)
 
-    consumer = AIOKafkaConsumer(
-        *topics,
-        bootstrap_servers=BROKER,
-        enable_auto_commit=False,
-        auto_offset_reset="latest",
-        group_id="pair_watch_producer",
-        value_deserializer=lambda b: json.loads(b.decode()),
-        key_deserializer=lambda b: b.decode() if b else None,
-    )
-    producer = AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
-
-    topic_to_tf = {topic_for_tf(spec.tf): spec.tf for spec in pairs}
-
-    await consumer.start()
-    await producer.start()
-    print(f"[pairwatch] IN={topics} → OUT={OUT_TOPIC}; startup complete")
-    _trigger_sound()
-
-    async def emit(engine: PairEngine, tf: int, ts: int) -> None:
+    async def emit_signal(engine: PairEngine, tf: int, ts: int, producer: AIOKafkaProducer) -> None:
         spec = engine.spec
         a_bar = latest_bar.get((spec.leg_a, tf))
         b_bar = latest_bar.get((spec.leg_b, tf))
@@ -977,7 +1030,7 @@ async def main():
         ts_b, px_b = b_bar
         if ts_a != ts or ts_b != ts:
             return
-        if engine.last_ts == ts:
+        if engine.last_ts is not None and ts <= engine.last_ts:
             return
         signal = engine.process(ts, px_a, px_b)
         _update_pair_gauges(engine, a_bar, b_bar)
@@ -1012,6 +1065,75 @@ async def main():
             reason=signal.get("reason"),
         )
 
+    producer = AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
+    await producer.start()
+
+    if SOURCE_MODE == "kite_poll":
+        print("[pairwatch] Zerodha poll mode enabled; skipping Kafka bars")
+        _trigger_sound()
+
+        async def poll_pair(engine: PairEngine) -> None:
+            spec = engine.spec
+            tf_seconds = spec.tf * 60
+            last_seen = engine.last_ts or 0
+            while True:
+                start_loop = time.time()
+                res_a, res_b = await asyncio.gather(
+                    _fetch_latest_bar_kite(kite, spec.leg_a, spec.tf, POLL_BAR_COUNT),
+                    _fetch_latest_bar_kite(kite, spec.leg_b, spec.tf, POLL_BAR_COUNT),
+                )
+                if res_a and res_b:
+                    ts_a, px_a = res_a
+                    ts_b, px_b = res_b
+                    ts = min(ts_a, ts_b)
+                    prev_a = latest_bar.get((spec.leg_a, spec.tf))
+                    prev_b = latest_bar.get((spec.leg_b, spec.tf))
+                    if prev_a and ts_a <= prev_a[0]:
+                        res_a = None
+                    if prev_b and ts_b <= prev_b[0]:
+                        res_b = None
+                    if res_a and res_b and ts > last_seen:
+                        latest_bar[(spec.leg_a, spec.tf)] = res_a
+                        latest_bar[(spec.leg_b, spec.tf)] = res_b
+                        tf_label = f"{spec.tf}m"
+                        PAIRWATCH_BARS_INGESTED.labels(spec.leg_a, tf_label).inc()
+                        PAIRWATCH_BARS_INGESTED.labels(spec.leg_b, tf_label).inc()
+                        age = max(0.0, time.time() - ts)
+                        PAIRWATCH_BAR_LAG.labels(spec.leg_a, tf_label).set(age)
+                        PAIRWATCH_BAR_LAG.labels(spec.leg_b, tf_label).set(age)
+                        await emit_signal(engine, spec.tf, ts, producer)
+                        last_seen = ts
+                now = time.time()
+                next_due = last_seen + tf_seconds if last_seen else now + tf_seconds
+                wait = max(MIN_POLL_WAIT, min(tf_seconds / 10.0, max(MIN_POLL_WAIT, next_due - now)))
+                await asyncio.sleep(wait)
+
+        tasks = [asyncio.create_task(poll_pair(engine)) for engine in engines.values()]
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            for t in tasks:
+                t.cancel()
+            await exporter.stop()
+            await producer.stop()
+        return
+
+    consumer = AIOKafkaConsumer(
+        *topics,
+        bootstrap_servers=BROKER,
+        enable_auto_commit=False,
+        auto_offset_reset="earliest",
+        group_id="pair_watch_producer",
+        value_deserializer=lambda b: json.loads(b.decode()),
+        key_deserializer=lambda b: b.decode() if b else None,
+    )
+
+    topic_to_tf = {topic_for_tf(spec.tf): spec.tf for spec in pairs}
+
+    await consumer.start()
+    print(f"[pairwatch] IN={topics} → OUT={OUT_TOPIC}; startup complete")
+    _trigger_sound()
+
     try:
         while True:
             batches = await consumer.getmany(timeout_ms=750, max_records=500)
@@ -1033,7 +1155,7 @@ async def main():
                     if not engines_for_symbol:
                         continue
                     for engine in engines_for_symbol:
-                        await emit(engine, tf, ts)
+                        await emit_signal(engine, tf, ts, producer)
             if batches:
                 await consumer.commit()
     finally:

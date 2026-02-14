@@ -59,7 +59,16 @@ async def main():
             if KS.is_tripped()[0]: print("[KILL] risk stop"); break
 
             # refresh available budget periodically
-            funds = await acc.tradable_equity(conf)
+            try:
+                funds = await acc.tradable_equity(conf)
+            except Exception as exc:
+                if not globals().get("_RISK_FALLBACK_WARNED"):
+                    print(f"[risk-manager] tradable_equity fetch failed ({exc}); using configured fallback")
+                    globals()["_RISK_FALLBACK_WARNED"] = True
+                total_cash = float(conf.get("total_cash_inr", 0.0) or 0.0)
+                holdback = float(conf.get("holdback_fraction", 0.0) or 0.0)
+                tradable = total_cash * max(0.0, 1.0 - holdback)
+                funds = {"tradable": tradable, "equity": total_cash}
             try:
                 FUNDS_TRADABLE.set(float(funds.get("tradable", 0.0)))
             except (TypeError, ValueError):

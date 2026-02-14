@@ -19,6 +19,7 @@ ENV:
 """
 from __future__ import annotations
 import os, asyncio, ujson as json, time, yaml, asyncpg, math
+from datetime import datetime, timezone
 from pathlib import Path
 import json as pyjson
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -35,10 +36,11 @@ OUT_TOPIC= os.getenv("OUT_TOPIC","orders")
 GROUP_ID = os.getenv("GROUP_ID","pairs_executor")
 BUDGET_YAML = os.getenv("RISK_BUDGET","configs/risk_budget.runtime.yaml")
 METRICS_PORT= int(os.getenv("METRICS_PORT","8115"))
-PAIRS_NEXT_DAY = os.getenv("PAIRS_NEXT_DAY","configs/pairs_next_day.yaml")
-PAIRS_CFG_RELOAD_SEC = int(os.getenv("PAIRS_CFG_RELOAD_SEC","300"))
+PAIR_META_RELOAD_SEC = int(os.getenv("PAIRS_CFG_RELOAD_SEC","300"))
+PAIRS_FALLBACK_YAML = os.getenv("PAIRS_FALLBACK_YAML","configs/pairs_next_day.yaml")
 STATE_FILE = Path(os.getenv("PAIRS_STATE_FILE", "data/runtime/pairs_state.json"))
 STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+SKIP_VALIDATION = os.getenv("PAIRS_EXEC_SKIP_VALIDATION", "0").lower() in {"1", "true", "yes", "on"}
 
 PG_HOST=os.getenv("POSTGRES_HOST","localhost"); PG_PORT=int(os.getenv("POSTGRES_PORT","5432"))
 PG_DB=os.getenv("POSTGRES_DB","trading"); PG_USER=os.getenv("POSTGRES_USER","trader"); PG_PASS=os.getenv("POSTGRES_PASSWORD","trader")
@@ -64,7 +66,10 @@ ORDER_PUBLISH_LAG = Histogram(
 )
 OPEN_PAIRS = Gauge("pairs_executor_open_pairs", "Open pair positions tracked by executor")
 
-def load_pairs_config(path: str) -> dict[Tuple[str,str], dict]:
+_SIGNAL_TABLE_AVAILABLE = True
+
+
+def _load_pairs_from_yaml(path: str) -> dict[Tuple[str, str], dict]:
     if not path or not os.path.exists(path):
         return {}
     try:
@@ -124,15 +129,102 @@ def load_pairs_config(path: str) -> dict[Tuple[str,str], dict]:
                 pass
         out[key] = {
             "symbol": sym,
-            "bucket": str(row.get("bucket","MED")).upper(),
+            "bucket": str(row.get("bucket", "MED")).upper(),
             "strategy": str(row.get("strategy") or "PAIRS"),
             "risk_per_trade": row.get("risk_per_trade"),
             "avg_hold_min": stats.get("avg_hold_min", row.get("avg_hold_min", 0.0)),
             "notional": notional,
             "base_notional": base_notional,
             "leverage": leverage,
+            "whitelist_source": "yaml",
         }
     return out
+
+
+async def load_pair_metadata(pool: asyncpg.Pool) -> dict[Tuple[str, str], dict]:
+    sql = """
+    SELECT
+        LEAST(l.sym1, l.sym2) AS leg_a,
+        GREATEST(l.sym1, l.sym2) AS leg_b,
+        l.sym1, l.sym2,
+        l.beta,
+        l.entry_z,
+        l.exit_z,
+        l.stop_z,
+        l.window_m,
+        u.pair_id,
+        u.note
+    FROM pairs_live l
+    LEFT JOIN pairs_universe u
+      ON LEAST(u.a_symbol, u.b_symbol) = LEAST(l.sym1, l.sym2)
+     AND GREATEST(u.a_symbol, u.b_symbol) = GREATEST(l.sym1, l.sym2)
+    WHERE l.trade_date = CURRENT_DATE
+    """
+    db_meta: dict[Tuple[str, str], dict] = {}
+    try:
+        async with pool.acquire() as con:
+            rows = await con.fetch(sql)
+    except asyncpg.exceptions.UndefinedTableError:
+        return _load_pairs_from_yaml(PAIRS_FALLBACK_YAML)
+    for row in rows:
+        leg_a = (row["leg_a"] or "").upper()
+        leg_b = (row["leg_b"] or "").upper()
+        if not leg_a or not leg_b:
+            continue
+        key = (leg_a, leg_b)
+        note_cfg: dict[str, Any] = {}
+        note_val = row["note"]
+        if note_val:
+            try:
+                note_cfg = pyjson.loads(note_val)
+                if not isinstance(note_cfg, dict):
+                    note_cfg = {}
+            except Exception:
+                note_cfg = {}
+        bucket = str(note_cfg.get("bucket", "MED")).upper()
+        strategy = str(note_cfg.get("strategy", "PAIRS"))
+        avg_hold = note_cfg.get("avg_hold_min")
+        if avg_hold is None and row["window_m"] is not None:
+            try:
+                avg_hold = float(row["window_m"])
+            except Exception:
+                avg_hold = None
+        meta: dict[str, Any] = {
+            "symbol": f"{row['sym1']}-{row['sym2']}",
+            "bucket": bucket,
+            "strategy": strategy,
+            "risk_per_trade": note_cfg.get("risk_per_trade"),
+            "avg_hold_min": avg_hold,
+            "notional": note_cfg.get("notional"),
+            "base_notional": note_cfg.get("base_notional"),
+            "leverage": note_cfg.get("leverage"),
+            "beta": float(row["beta"]) if row["beta"] is not None else None,
+            "entry_z": float(row["entry_z"]) if row["entry_z"] is not None else None,
+            "exit_z": float(row["exit_z"]) if row["exit_z"] is not None else None,
+            "stop_z": float(row["stop_z"]) if row["stop_z"] is not None else None,
+            "window_m": int(row["window_m"]) if row["window_m"] is not None else None,
+            "db_pair_id": row["pair_id"],
+            "whitelist_source": "db",
+        }
+        # drop None values except symbol/whitelist_source
+        filtered = {"symbol": meta["symbol"], "whitelist_source": "db"}
+        for k, v in meta.items():
+            if k in ("symbol", "whitelist_source"):
+                continue
+            if v is not None:
+                filtered[k] = v
+        db_meta[key] = filtered
+
+    yaml_meta = _load_pairs_from_yaml(PAIRS_FALLBACK_YAML)
+    if not db_meta:
+        return yaml_meta
+
+    merged: dict[Tuple[str, str], dict] = {}
+    for key, db_row in db_meta.items():
+        base = dict(yaml_meta.get(key, {}))
+        base.update(db_row)
+        merged[key] = base
+    return merged
 
 def load_budget():
     # Expect:
@@ -144,18 +236,67 @@ def load_budget():
     except Exception:
         return {"MED":{"split":0.3,"max_per_trade":20000}}
 
-async def positions_today(pool, pair_id:str):
+_ACTION_TO_SIDE = {
+    "ENTER_LONG_A_SHORT_B": "LONG_A_SHORT_B",
+    "ENTER_SHORT_A_LONG_B": "SHORT_A_LONG_B",
+    "EXIT": "EXIT",
+}
+
+
+async def persist_signal_event(
+    pool: asyncpg.Pool,
+    *,
+    sym_a: str,
+    sym_b: str,
+    action: str,
+    z: Optional[float],
+    ts_ms: int,
+    reason: Optional[str],
+) -> None:
+    global _SIGNAL_TABLE_AVAILABLE
+    if not _SIGNAL_TABLE_AVAILABLE:
+        return
+    side = _ACTION_TO_SIDE.get(action)
+    if not side:
+        return
+    try:
+        zscore = float(z)
+    except (TypeError, ValueError):
+        zscore = 0.0
+    ts_dt = datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc)
+    sym_a_up = str(sym_a or "").upper()
+    sym_b_up = str(sym_b or "").upper()
+    if not sym_a_up or not sym_b_up:
+        return
+    try:
+        async with pool.acquire() as con:
+            await con.execute(
+                "INSERT INTO pairs_signals(ts, sym_a, sym_b, zscore, side, reason) VALUES($1,$2,$3,$4,$5,$6)",
+                ts_dt,
+                sym_a_up,
+                sym_b_up,
+                zscore,
+                side,
+                reason,
+            )
+    except asyncpg.exceptions.UndefinedTableError:
+        _SIGNAL_TABLE_AVAILABLE = False
+    except Exception as exc:
+        print(f"[pairs-exec] signal log failed: {exc}")
+
+
+async def positions_net(pool, pair_id: str):
     """
-    Reads today's net positions for the pair legs from fills.extra JSON.
+    Reads the net position across all recorded fills for the given pair.
     Requires fills.extra->>'pair_id' to be set by gateways.
-    Returns dict { "A": net_qty, "B": net_qty }
+    Returns dict { "A": net_qty, "B": net_qty }.
     """
     async with pool.acquire() as con:
         rows = await con.fetch("""
           SELECT (extra->>'leg') AS leg,
                  SUM(CASE WHEN side='BUY' THEN qty ELSE -qty END)::int AS net
           FROM fills
-          WHERE ts::date = CURRENT_DATE AND (extra->>'pair_id') = $1
+          WHERE (extra->>'pair_id') = $1
           GROUP BY leg
         """, pair_id)
     out={"A":0,"B":0}
@@ -213,8 +354,8 @@ async def main():
     producer=AIOKafkaProducer(bootstrap_servers=BROKER, acks="all", linger_ms=5)
     await consumer.start(); await producer.start()
 
-    pair_meta = load_pairs_config(PAIRS_NEXT_DAY)
-    last_cfg_reload = time.time()
+    pair_meta = await load_pair_metadata(pool)
+    last_meta_reload = time.time()
     print(f"[pairs-exec] {IN_TOPIC} → {OUT_TOPIC} using {BUDGET_YAML}; whitelist={'OFF' if not pair_meta else 'ON'}")
     positions_state = load_state()
     if positions_state:
@@ -223,9 +364,9 @@ async def main():
     try:
         async for m in consumer:
             now = time.time()
-            if now - last_cfg_reload >= PAIRS_CFG_RELOAD_SEC:
-                pair_meta = load_pairs_config(PAIRS_NEXT_DAY)
-                last_cfg_reload = now
+            if now - last_meta_reload >= PAIR_META_RELOAD_SEC:
+                pair_meta = await load_pair_metadata(pool)
+                last_meta_reload = now
 
             s = m.value
             start_proc = time.perf_counter()
@@ -236,6 +377,20 @@ async def main():
                 a = str(s["a_symbol"])
                 b = str(s["b_symbol"])
                 beta = float(s.get("beta", 1.0))
+                ts_raw = s.get("ts")
+                try:
+                    ts_ms = int(ts_raw)
+                except (TypeError, ValueError):
+                    ts_ms = int(time.time() * 1000)
+                await persist_signal_event(
+                    pool,
+                    sym_a=a,
+                    sym_b=b,
+                    action=act_label,
+                    z=s.get("z"),
+                    ts_ms=ts_ms,
+                    reason=s.get("reason"),
+                )
                 key = tuple(sorted((a.upper(), b.upper())))
                 meta = pair_meta.get(key)
                 bucket = (s.get("risk_bucket") or "MED").upper()
@@ -251,7 +406,7 @@ async def main():
                         risk_override = float(ro) if ro is not None else None
                     except Exception:
                         risk_override = None
-                elif pair_meta and act_label.startswith("ENTER"):
+                elif pair_meta and act_label.startswith("ENTER") and not SKIP_VALIDATION:
                     REJECTS.labels("not_whitelisted").inc()
                     await consumer.commit()
                     continue
@@ -260,21 +415,13 @@ async def main():
                 pxB = float(s.get("pxB") or 0.0)
                 max_per_trade = float(buckets.get(bucket, {}).get("max_per_trade", 20000.0))
                 SIGNALS_SEEN.labels(act_label).inc()
-
-                ts_raw = s.get("ts")
-                ts_ms: Optional[int]
-                try:
-                    ts_ms = int(ts_raw)
-                except (TypeError, ValueError):
-                    ts_ms = None
-                if ts_ms is None:
-                    ts_ms = int(time.time() * 1000)
+                ts_ms = ts_ms or int(time.time() * 1000)
                 signal_lag = max(0.0, time.time() - (ts_ms / 1000.0))
                 SIGNAL_LAG.observe(signal_lag)
                 order_ts = ts_ms // 1000
 
                 # require prices to size
-                if act_label.startswith("ENTER") and (pxA <= 0 or pxB <= 0):
+                if act_label.startswith("ENTER") and (pxA <= 0 or pxB <= 0) and not SKIP_VALIDATION:
                     REJECTS.labels("no_px").inc()
                     await consumer.commit()
                     continue
@@ -316,7 +463,7 @@ async def main():
                 effective_notional = base_notional * leverage
 
                 if act_label == "EXIT":
-                    net = await positions_today(pool, pair_id)
+                    net = await positions_net(pool, pair_id)
                     qA, qB = abs(net["A"]), abs(net["B"])
                     if qA == 0 and qB == 0:
                         await consumer.commit()

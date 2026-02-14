@@ -1,8 +1,8 @@
 # configs/costs.yaml
-slippage_bps: 3                # 0.03% per fill (marketable)
-brokerage_per_order: 20.0      # flat (INR)
-sebi_turnover_bps: 0.1         # 0.001%
-stt_bps: 1.0                   # 0.01% (equity delivery higher; intraday lower—adjust per product)
-exchange_txn_bps: 0.32         # 0.0032%
-gst_bps_on_brokerage: 18*100   # 18% of brokerage (express as basis points of brokerage)
-stamp_bps_buy: 0.15            # 0.0015% on buy
+slippage_bps: 10               # widen to 0.10% per fill
+brokerage_per_order: 50.0      # higher flat fee
+sebi_turnover_bps: 0.5         # 0.005%
+stt_bps: 6.0                   # 0.06% (more aggressive for intraday)
+exchange_txn_bps: 1.0          # 0.01%
+gst_bps_on_brokerage: 18*100   # same 18% GST on brokerage
+stamp_bps_buy: 1.0             # 0.01%

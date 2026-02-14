@@ -5,28 +5,37 @@
       "type": "graph",
       "title": "Flush p95 (s)",
       "targets": [
-        { "expr": "histogram_quantile(0.95, sum(rate(agg_flush_seconds_bucket[5m])) by (le))" }
+        { "expr": "histogram_quantile(0.95, sum(rate(bar_agg_flush_seconds_bucket[5m])) by (le))" }
       ],
       "linewidth": 2, "fill": 1, "id": 1
     },
     {
       "type": "graph",
-      "title": "Bars Out /s (3m,5m,15m,60m)",
+      "title": "Bars Out /s (3m,5m,15m)",
       "targets": [
-        { "expr": "sum(rate(bars_3m_out_total[1m]))" },
-        { "expr": "sum(rate(bars_5m_out_total[1m]))" },
-        { "expr": "sum(rate(bars_15m_out_total[1m]))" },
-        { "expr": "sum(rate(bars_60m_out_total[1m]))" }
+        { "expr": "sum(rate(bar_agg_output_3m_total[1m]))" },
+        { "expr": "sum(rate(bar_agg_output_5m_total[1m]))" },
+        { "expr": "sum(rate(bar_agg_output_15m_total[1m]))" }
       ],
       "linewidth": 2, "fill": 1, "id": 2
     },
     {
       "type": "graph",
-      "title": "Kafka Consumer Lag (agg_1m_multi)",
+      "title": "Kafka Consumer Lag (agg-1m-to-multi)",
       "targets": [
-        { "expr": "sum(kafka_consumergroup_lag{consumergroup=\"agg_1m_multi\"})" }
+        { "expr": "sum(kafka_consumergroup_lag{consumergroup=\"agg-1m-to-multi\"})" }
       ],
       "linewidth": 2, "fill": 1, "id": 3
+    },
+    {
+      "type": "graph",
+      "title": "Bar Publish p95 Lag (s)",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_3m_seconds_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_5m_seconds_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(bar_agg_bar_latency_15m_seconds_bucket[5m])) by (le))" }
+      ],
+      "linewidth": 2, "fill": 1, "id": 4
     }
   ],
   "schemaVersion": 36, "version": 1

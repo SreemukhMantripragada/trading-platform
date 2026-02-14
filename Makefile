@@ -63,7 +63,7 @@ agg-multi:
 	. .venv/bin/activate && IN_TOPIC=bars.1m KAFKA_BROKER=${KAFKA_BOOT:-localhost:9092} \
 	POSTGRES_HOST=${POSTGRES_HOST:-localhost} POSTGRES_PORT=${POSTGRES_PORT:-5432} \
 	POSTGRES_DB=${POSTGRES_DB:-trading} POSTGRES_USER=${POSTGRES_USER:-trader} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-trader} \
-	python compute/bar_aggregator_from_1m.py
+	python compute/bar_aggregator_1m_to_multi.py
 
 .PHONY: ws recon-v2 pairs-make pairs-monitor bt-ui
 ws:

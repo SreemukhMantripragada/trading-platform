@@ -3,7 +3,7 @@
 # Quick pre-flight checklist for the live pairs stack.
 # Run on the EC2 host from the repo root before market open.
 
-set -euo pipefail
+# set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -57,6 +57,25 @@ from backtest.scorer import (
 from backtest.persistence import get_latest_run_id, save_results, write_next_day_yaml
 
 LEVERAGE_MULT = float(os.getenv("PAIRS_BT_LEVERAGE", "5.0"))
+PAIR_BASE_NOTIONAL_DEFAULT = 200_000.0
+PAIR_LEVERAGE_DEFAULT = 5.0
+DEFAULT_LOOKBACK = 120
+LOOKBACK_GRID_DEFAULTS = {
+    3: [DEFAULT_LOOKBACK],
+    5: [DEFAULT_LOOKBACK],
+    15: [DEFAULT_LOOKBACK],
+}
+# LOOKBACK_GRID_DEFAULTS = {
+#     3: [60, 90, 120],
+#     5: [90, 120, 150],
+#     15: [120, 180, 240],
+# }
+THRESHOLD_OFFSETS = {
+    "entry_z": [ -0.25, 0.0, 0.25],
+    "exit_z": [ -0.25, 0.0, 0.25],
+    "stop_z": [-0.5, 0.0, 0.5],
+}
+MIN_PROFIT_PER_TRADE_DEFAULT = 200.0
 
 # ----------------- helpers -----------------
 def load_yaml(path, default=None):
@@ -85,7 +104,19 @@ def _grid_values(pair_cfg: Dict[str, Any], defaults: Dict[str, Any], key: str, f
         source = defaults.get(grid_key)
     if source is None:
         base = _value_from_cfg(pair_cfg, defaults, key, fallback)
-        source = [base]
+        offsets = THRESHOLD_OFFSETS.get(key)
+        if offsets:
+            generated = []
+            for off in offsets:
+                candidate = base + off
+                if key != "stop_z":
+                    candidate = max(0.1, candidate)
+                else:
+                    candidate = max(0.5, candidate)
+                generated.append(candidate)
+            source = generated
+        else:
+            source = [base]
     if not isinstance(source, (list, tuple, set)):
         source = [source]
     out: List[float] = []
@@ -96,39 +127,93 @@ def _grid_values(pair_cfg: Dict[str, Any], defaults: Dict[str, Any], key: str, f
             continue
     if not out:
         out.append(float(fallback))
-    return out
+    # ensure unique, sorted, 0.25 granularity preserved
+    unique_sorted = sorted(set(round(val, 4) for val in out))
+    return unique_sorted
 
-def _format_variant_id(entry_z: float, exit_z: float, stop_z: float) -> str:
+def _normalize_tf_minutes(tf_val: Any) -> Optional[int]:
+    if tf_val is None:
+        return None
+    if isinstance(tf_val, (int, float)):
+        val = int(tf_val)
+        return val if val > 0 else None
+    if isinstance(tf_val, str):
+        text = tf_val.strip().lower()
+        if text in TF_LOOKUP:
+            return TF_LOOKUP[text]
+        if text.endswith("m"):
+            text = text[:-1]
+        try:
+            val = int(text)
+            return val if val > 0 else None
+        except Exception:
+            return None
+    return None
+
+def _lookback_grid_values(pair_cfg: Dict[str, Any], defaults: Dict[str, Any], fallback: int) -> List[int]:
+    source = pair_cfg.get("lookback_grid")
+    if source is None:
+        source = defaults.get("lookback_grid")
+    values: List[int] = []
+    if source is not None:
+        if not isinstance(source, (list, tuple, set)):
+            source = [source]
+        for item in source:
+            try:
+                val = int(float(item))
+            except Exception:
+                continue
+            if val > 0:
+                values.append(val)
+    if not values:
+        tf_minutes = _normalize_tf_minutes(pair_cfg.get("tf"))
+        if tf_minutes is None:
+            tf_minutes = _normalize_tf_minutes(defaults.get("default_tf"))
+        default_grid = LOOKBACK_GRID_DEFAULTS.get(tf_minutes or 0)
+        if default_grid:
+            values.extend(default_grid)
+    if not values:
+        values.append(int(fallback))
+    return sorted(set(values))
+
+def _format_variant_id(lookback: int, entry_z: float, exit_z: float, stop_z: float) -> str:
     def _fmt(val: float) -> str:
         text = f"{val:.2f}".rstrip("0").rstrip(".")
         text = text if text else "0"
         return text.replace("-", "m").replace(".", "p")
-    return f"ez{_fmt(entry_z)}_xz{_fmt(exit_z)}_sz{_fmt(stop_z)}"
+    return f"lb{int(lookback)}_ez{_fmt(entry_z)}_xz{_fmt(exit_z)}_sz{_fmt(stop_z)}"
 
 def _expand_pair_configs(pair_cfg: Dict[str, Any], defaults: Dict[str, Any]) -> List[Dict[str, Any]]:
     entry_default = _value_from_cfg(pair_cfg, defaults, "entry_z", 2.0)
     exit_default = _value_from_cfg(pair_cfg, defaults, "exit_z", 1.0)
     stop_default = _value_from_cfg(pair_cfg, defaults, "stop_z", 3.0)
     notional_default = _value_from_cfg(pair_cfg, defaults, "notional_per_leg", 50_000.0)
+    lookback_default = int(
+        max(1, _value_from_cfg(pair_cfg, defaults, "lookback", float(DEFAULT_LOOKBACK)))
+    )
 
     entry_vals = _grid_values(pair_cfg, defaults, "entry_z", entry_default)
     exit_vals = _grid_values(pair_cfg, defaults, "exit_z", exit_default)
     stop_vals = _grid_values(pair_cfg, defaults, "stop_z", stop_default)
+    lookback_vals = _lookback_grid_values(pair_cfg, defaults, lookback_default)
     default_leverage = _value_from_cfg(pair_cfg, defaults, "leverage", LEVERAGE_MULT)
 
     variants: List[Dict[str, Any]] = []
-    grid_size = len(entry_vals) * len(exit_vals) * len(stop_vals)
-    combo_iter = product(entry_vals, exit_vals, stop_vals)
-    for combo_idx, (entry_v, exit_v, stop_v) in enumerate(combo_iter, start=1):
+    grid_size = len(lookback_vals) * len(entry_vals) * len(exit_vals) * len(stop_vals)
+    combo_iter = product(lookback_vals, entry_vals, exit_vals, stop_vals)
+    for combo_idx, (lookback_v, entry_v, exit_v, stop_v) in enumerate(combo_iter, start=1):
         cfg = dict(pair_cfg)
         cfg.setdefault("leverage", default_leverage)
+        cfg["lookback"] = int(max(1, round(lookback_v)))
+        if "beta_lookback" not in cfg or cfg.get("beta_lookback") is None:
+            cfg["beta_lookback"] = int(cfg["lookback"])
         cfg["entry_z"] = float(entry_v)
         cfg["exit_z"] = float(exit_v)
         cfg["stop_z"] = float(stop_v)
         cfg["notional_per_leg"] = float(notional_default)
         cfg["grid_index"] = combo_idx
         cfg["grid_size"] = grid_size
-        cfg["variant_id"] = _format_variant_id(entry_v, exit_v, stop_v)
+        cfg["variant_id"] = _format_variant_id(cfg["lookback"], entry_v, exit_v, stop_v)
         variants.append(cfg)
     return variants
 
@@ -322,11 +407,19 @@ def simulate_pair(
     exit_z      = float(pair_cfg.get("exit_z", 1))
     stop_z      = float(pair_cfg.get("stop_z", 3.0))
     max_hold_min= int(pair_cfg.get("max_hold_min", 400))
-    notional_per_leg = float(pair_cfg.get("notional_per_leg", 50_000.0))
+    notional_per_leg = float(pair_cfg.get("notional_per_leg", 0.0) or 0.0)
+    base_notional = float(pair_cfg.get("base_notional", 0.0) or 0.0)
+    if base_notional <= 0 and notional_per_leg > 0:
+        base_notional = notional_per_leg * 2.0
+    if base_notional <= 0:
+        base_notional = PAIR_BASE_NOTIONAL_DEFAULT
     leverage = float(pair_cfg.get("leverage", LEVERAGE_MULT))
     if not math.isfinite(leverage) or leverage <= 0:
-        leverage = LEVERAGE_MULT
-    total_notional  = max(0.0, notional_per_leg * leverage * 2.0)
+        leverage = PAIR_LEVERAGE_DEFAULT
+    gross_override = float(pair_cfg.get("gross_notional", 0.0) or 0.0)
+    if gross_override <= 0:
+        gross_override = float(pair_cfg.get("pair_gross_notional", 0.0) or 0.0)
+    total_notional = gross_override if gross_override > 0 else max(0.0, base_notional * leverage)
 
     rx = TFResampler(tf_minutes); ry = TFResampler(tf_minutes)
     i=j=0; nx=len(series_x); ny=len(series_y)
@@ -356,12 +449,21 @@ def simulate_pair(
         return (n*sxy - sx*sy)/den
 
     def sized_qty(px, py, b):
-        b_abs = abs(b) if not math.isnan(b) else 1.0
-        denom = max((px + b_abs * py), 1e-6)
-        qx = max(1, int(total_notional / denom))
-        qy = max(1, int(b_abs * qx))
+        if total_notional <= 0 or px <= 0 or py <= 0:
+            return 0, 0
+        b_abs = abs(b) if math.isfinite(b) else 1.0
+        b_abs = max(b_abs, 1e-3)
+        ratio_x = 1.0
+        ratio_y = b_abs
+        unit = px * ratio_x + py * ratio_y
+        if unit <= 0:
+            return 0, 0
+        scale = total_notional / unit
+        qx = max(1, int(scale * ratio_x))
+        qy = max(1, int(scale * ratio_y))
         return qx, qy
 
+    tf_seconds = tf_minutes * 60 if tf_minutes > 0 else 60
     open_pos: Optional[Dict[str, Any]] = None
     trades: List[Dict[str, Any]] = []
     n_bars = 0
@@ -372,6 +474,8 @@ def simulate_pair(
     max_dd_val = 0.0
     last_prices: Optional[Tuple[int, float, float]] = None
     prev_z: Optional[float] = None
+    prev_ts: Optional[int] = None
+    pending_entry: Optional[Dict[str, Any]] = None
 
     def _close_position(t_ts: int, x_px: float, y_px: float, z_val: Optional[float], reason: str):
         nonlocal open_pos, eq, peak_eq, max_dd_val
@@ -448,36 +552,94 @@ def simulate_pair(
             beyond_flatten = (flatten_cutoff_min is not None) and (ist_minutes >= flatten_cutoff_min)
 
             if open_pos is None:
-                crossed_upper = prev_z is not None and prev_z < entry_z and z >= entry_z
-                crossed_lower = prev_z is not None and prev_z > -entry_z and z <= -entry_z
-                if not beyond_flatten and (crossed_upper or crossed_lower):
-                    side = "SHORTSPREAD" if crossed_upper else "LONGSPREAD"
-                    qx, qy = sized_qty(x, y, cur_beta)
-                    if qx > 0 and qy > 0:
-                        trades.append({
-                            "ts": t,
-                            "action": "OPEN",
-                            "side": side,
-                            "beta": cur_beta,
-                            "z": float(z),
-                            "x_px": x,
-                            "y_px": y,
-                            "qx": qx,
-                            "qy": qy,
-                        })
-                        open_pos = {
-                            "since": t,
-                            "side": side,
-                            "beta": cur_beta,
-                            "qx": qx,
-                            "qy": qy,
-                            "x_open": x,
-                            "y_open": y,
-                            "entry_z": float(z),
-                            "last_z": float(z),
-                        }
+                if beyond_flatten:
+                    pending_entry = None
+                else:
+                    triggered = False
+                    if pending_entry and prev_z is not None:
+                        elapsed = t - pending_entry["start_ts"]
+                        bars_elapsed = int(round(elapsed / tf_seconds)) if tf_seconds > 0 else 0
+                        if bars_elapsed < 0:
+                            bars_elapsed = 0
+                        direction = pending_entry["direction"]
+                        if (
+                            direction == -1
+                            and prev_z >= entry_z
+                            and z <= entry_z
+                        ):
+                            qx, qy = sized_qty(x, y, cur_beta)
+                            if qx > 0 and qy > 0:
+                                entry_reason = f"revert_short_{bars_elapsed}bars"
+                                trades.append({
+                                    "ts": t,
+                                    "action": "OPEN",
+                                    "side": "SHORTSPREAD",
+                                    "beta": cur_beta,
+                                    "z": float(z),
+                                    "x_px": x,
+                                    "y_px": y,
+                                    "qx": qx,
+                                    "qy": qy,
+                                    "reason": entry_reason,
+                                })
+                                open_pos = {
+                                    "since": t,
+                                    "side": "SHORTSPREAD",
+                                    "beta": cur_beta,
+                                    "qx": qx,
+                                    "qy": qy,
+                                    "x_open": x,
+                                    "y_open": y,
+                                    "entry_z": float(z),
+                                    "last_z": float(z),
+                                    "entry_reason": entry_reason,
+                                }
+                                pending_entry = None
+                                triggered = True
+                        elif (
+                            direction == 1
+                            and prev_z <= -entry_z
+                            and z >= -entry_z
+                        ):
+                            qx, qy = sized_qty(x, y, cur_beta)
+                            if qx > 0 and qy > 0:
+                                entry_reason = f"revert_long_{bars_elapsed}bars"
+                                trades.append({
+                                    "ts": t,
+                                    "action": "OPEN",
+                                    "side": "LONGSPREAD",
+                                    "beta": cur_beta,
+                                    "z": float(z),
+                                    "x_px": x,
+                                    "y_px": y,
+                                    "qx": qx,
+                                    "qy": qy,
+                                    "reason": entry_reason,
+                                })
+                                open_pos = {
+                                    "since": t,
+                                    "side": "LONGSPREAD",
+                                    "beta": cur_beta,
+                                    "qx": qx,
+                                    "qy": qy,
+                                    "x_open": x,
+                                    "y_open": y,
+                                    "entry_z": float(z),
+                                    "last_z": float(z),
+                                    "entry_reason": entry_reason,
+                                }
+                                pending_entry = None
+                                triggered = True
+                    if not triggered and prev_z is not None:
+                        if prev_z < entry_z <= z:
+                            start_ts = prev_ts if prev_ts is not None else t
+                            pending_entry = {"direction": -1, "start_ts": start_ts}
+                        elif prev_z > -entry_z >= z:
+                            start_ts = prev_ts if prev_ts is not None else t
+                            pending_entry = {"direction": 1, "start_ts": start_ts}
                 del pend[t]
                 prev_z = float(z)
+                prev_ts = t
                 continue
 
             # Position management
@@ -498,6 +660,7 @@ def simulate_pair(
                 _close_position(t, x, y, float(z), reason)
             del pend[t]
             prev_z = float(z)
+            prev_ts = t
 
     if open_pos is not None and last_prices is not None:
         t_last, x_last, y_last = last_prices
@@ -710,11 +873,16 @@ async def main(workers_override: int | None = None):
         reserve_frac = float(reserve_cfg)
     except Exception:
         reserve_frac = 0.20
-    min_ppt_cfg = scoring_cfg.get("min_profit_per_trade", defaults.get("min_profit_per_trade", 0.0))
+    min_ppt_cfg = scoring_cfg.get(
+        "min_profit_per_trade",
+        defaults.get("min_profit_per_trade", MIN_PROFIT_PER_TRADE_DEFAULT),
+    )
     try:
         min_profit_per_trade = float(min_ppt_cfg)
     except Exception:
-        min_profit_per_trade = 0.0
+        min_profit_per_trade = MIN_PROFIT_PER_TRADE_DEFAULT
+    if min_profit_per_trade < MIN_PROFIT_PER_TRADE_DEFAULT:
+        min_profit_per_trade = MIN_PROFIT_PER_TRADE_DEFAULT
     next_day_path = (
         scoring_cfg.get("next_day_path")
         or defaults.get("next_day_path")
@@ -794,7 +962,7 @@ async def main(workers_override: int | None = None):
                 tf_variant_summaries[tfm][variant].append(summ)
                 if rows:
                     tf_variant_ledgers[tfm][variant][summ["pair"]] = rows or []
-            if idx % 5 == 0 or idx == len(pairs):
+            if idx % 20 == 0 or idx == len(pairs):
                 print(f"[pairs-bt] processed {idx}/{len(pairs)} pairs")
 
     if not any(tf_variant_summaries.values()):
@@ -834,6 +1002,7 @@ async def main(workers_override: int | None = None):
             continue
         selected_summaries.extend(tf_summaries)
         params_example = _ensure_params_dict((tf_summaries[0] if tf_summaries else {}).get("params"))
+        lookback_selected = params_example.get("lookback")
         entry_selected = params_example.get("entry_z")
         exit_selected = params_example.get("exit_z")
         stop_selected = params_example.get("stop_z")
@@ -841,7 +1010,7 @@ async def main(workers_override: int | None = None):
         metric_msg = f"{metric_val:.3f}" if math.isfinite(metric_val) else "N/A"
         print(
             f"[pairs-bt] tf={tfm} best thresholds variant={best_variant or 'default'} "
-            f"entry_z={entry_selected} exit_z={exit_selected} stop_z={stop_selected} "
+            f"lookback={lookback_selected} entry_z={entry_selected} exit_z={exit_selected} stop_z={stop_selected} "
             f"(avg score={metric_msg}, candidates={best_data['count']}, leverage=x{LEVERAGE_MULT})"
         )
         ledger_slice = tf_variant_ledgers.get(tfm, {}).get(best_variant, {})

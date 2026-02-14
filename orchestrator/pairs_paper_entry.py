@@ -91,6 +91,8 @@ async def main() -> None:
     load_dotenv(ROOT_DIR / "infra" / ".env", override=False)
 
     base_env = os.environ.copy()
+    user_leverage = base_env.get("PAIRS_LEVERAGE")
+    user_bt_leverage = base_env.get("PAIRS_BT_LEVERAGE")
 
     venv_bin = VENV_PY.parent
     if venv_bin.exists():
@@ -101,8 +103,22 @@ async def main() -> None:
     base_env.setdefault("AUTO_SWITCH_TO_LIVE", "0")
     base_env.setdefault("PAIR_HYDRATE_SOURCE", "kite")
     base_env.setdefault("PAIRS_STATE_FILE", "data/runtime/pairs_state.json")
-    base_env.setdefault("PAIRS_LEVERAGE", os.getenv("PAIRS_LEVERAGE", "5"))
-    base_env.setdefault("PAIRS_BT_LEVERAGE", os.getenv("PAIRS_BT_LEVERAGE", "5"))
+    base_env.setdefault("PAIRS_LEVERAGE", user_leverage or "5")
+    base_env.setdefault("PAIRS_BT_LEVERAGE", user_bt_leverage or base_env["PAIRS_LEVERAGE"])
+    mode = (base_env.get("PAIRS_MODE") or "").strip().lower()
+    if mode in {"swing", "swing_trading"}:
+        base_env["PAIRS_MODE"] = "swing"
+        base_env.setdefault("PAIRS_NEXT_DAY", "configs/pairs_swing.yaml")
+        base_env.setdefault("PAIRWATCH_FLATTEN_HHMM", "none")
+        base_env.setdefault("OUT_TFS", base_env.get("OUT_TFS", "3,5,15,60"))
+        base_env.setdefault("MAX_HOLD_MIN_DEFAULT", "1440")
+        base_env.setdefault("PAIRWATCH_MIN_CANDLES", "200")
+        base_env.setdefault("HYDRATE_LOOKBACK_MULT", "5")
+        base_env.setdefault("PAIR_ENTRY_RECENT_BARS", "1")
+        if not user_leverage:
+            base_env["PAIRS_LEVERAGE"] = "3"
+        if not user_bt_leverage:
+            base_env["PAIRS_BT_LEVERAGE"] = base_env["PAIRS_LEVERAGE"]
     existing_py = base_env.get("PYTHONPATH")
     path_str = str(ROOT_DIR)
     if existing_py:

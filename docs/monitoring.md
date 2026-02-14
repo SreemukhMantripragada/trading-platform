@@ -57,3 +57,4 @@ Each process exposes throughput counters plus latency histograms (tick ingestion
 - `orders_emitted_total`: strategy runner throughput.
 - `gateway_rate_limited_total`, `gateway_fills_total`: Zerodha gateway stats from exporters.
 - `pairs_spread_zscore`: real-time pair anomaly metric for monitoring thresholds.
+- `bar_agg_output_{tf}m_total`, `bar_agg_flush_seconds_bucket`, `bar_agg_bar_latency_{tf}m_seconds_bucket`: multi-timeframe bar aggregator throughput plus flush/publish latency (drive the Grafana “Bars Aggregator (Compact)” dashboard).
