@@ -3,9 +3,13 @@
 This runbook is the safest way to run and observe the platform without placing real broker orders.
 
 Use this with:
+- `docs/study_cheatsheet.md` (rapid pre-flight checklist)
+- `docs/study_playbook.md` (single-screen command order + simple design reasons)
 - `docs/study_plan_21d.md`
 - `docs/repo_file_catalog.md`
 - `docs/architecture_tech_choices.md`
+
+If you want one consolidated flow map first, read `docs/study_playbook.md` Section 1 before running commands here.
 
 ## Safety Rules
 

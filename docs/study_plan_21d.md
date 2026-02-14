@@ -3,6 +3,8 @@
 This plan is designed for someone who starts with no programming background and needs deep, defensible understanding of this repository.
 
 Use this plan with:
+- `docs/study_cheatsheet.md` (quick command + explanation revision before each session)
+- `docs/study_playbook.md` (single place for full flow map + run commands + simple design reasons)
 - `docs/repo_file_catalog.md` (every tracked file, purpose, and alternatives)
 - `docs/runbook_dry_mode.md` (hands-on step-by-step runbook)
 - `docs/architecture_tech_choices.md` (deep tradeoff guide across all tech choices)
@@ -41,6 +43,11 @@ pip install -r requirements.txt
 make up
 make doctor
 ```
+
+Before Day 1, do one fast orientation pass:
+- Read `docs/study_playbook.md` completely.
+- Run the command sequence in `docs/study_playbook.md` Section 2 (A to D).
+- Keep one note page with: command, observed output, and one-line "why this exists".
 
 ## Master Mental Model (Memorize)
 

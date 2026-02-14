@@ -15,11 +15,14 @@ flowchart TD
   subgraph Live_Session["Live Session"]
     ZW((Zerodha WS)) --> T[(Kafka ticks)]
     T --> B1S[Bar Builder 1s]
-    B1S --> BTF[(Kafka bars.1s)]
-    BTF --> AGG[Multi-TF Aggregator]
-    AGG --> PG[(Postgres bars_1m)]
+    B1S --> K1S[(Kafka bars.1s)]
+    K1S --> A1M[Bar Aggregator 1m]
+    A1M --> PG1[(Postgres bars_1m)]
+    A1M --> K1M[(Kafka bars.1m)]
+    K1M --> AGG[Multi-TF Aggregator]
+    AGG --> PGTF[(Postgres bars_3m/5m/15m)]
     AGG --> KTF[(Kafka bars.tf.*)]
-    PG --> STR[Strategy Runners]
+    PG1 --> STR[Strategy Runners]
     KTF --> STR
     STR --> RSK[Risk Guardrails]
     RSK --> OMS[OMS Router]
@@ -30,9 +33,9 @@ flowchart TD
   end
 
   subgraph After_Close["After Close"]
-    PG --> RECON[Recon & Archive]
+    PG1 --> RECON[Recon & Archive]
     RECON --> ARCH[(S3 Parquet)]
-    PG --> SCORE[Scoring Engine]
+    PG1 --> SCORE[Scoring Engine]
     SCORE --> WATCH[Next-Day Picks]
   end
 
@@ -76,11 +79,18 @@ flowchart TD
 - Backtests + sweeps: `backtest/grid_runner_parallel.py`, `backtest/engine.py`
 - Ranking engine: `backtest/scorer.py` (details in `docs/scoring.md`) for gating, z-scoring, and next-day promotion.
 - Streamlit UI: `ui/backtest_app.py` (`make bt-ui`) to review strategy cohorts.
-
+## Grafana Dashboard Sample
+![alt text](</docs/assets/Screenshot 2026-02-14 at 7.43.21 PM (1).png>)
 ## Development Notes
 - `make doctor` snapshots infra health and tails critical logs.
 - Docker stack config is single-sourced via `configs/docker_stack.json`; use `make docker-config-list` and `make docker-config-sync`.
 - Prometheus app target host is also controlled from `configs/docker_stack.json` via `APP_METRICS_HOST`.
+- `make metrics-sync` regenerates both Prometheus targets and the canonical Grafana observability dashboard.
+- Manual Python vs Go varied-load benchmark with report: `make perf-test` (outputs in `runs/perf_compare/`).
+- `make perf-test` defaults to `PERF_SCENARIO=paper-flow` (full paper path: ingestion, compute, pair-watch, execution, risk, matcher) and auto-starts required infra services without `app-supervisor`.
+- To run ingest+agg-only mode instead: `make perf-test PERF_SCENARIO=pipeline`.
+- Perf benchmark knobs: `LOADS`, `STAGE_SEC`, `WARMUP_SEC`, `SAMPLE_SEC`, `SIM_BASE_TPS`, `SIM_HOT_TPS`, `SIM_HOT_SYMBOL_PCT`, `SIM_HOT_ROTATE_SEC`, `SIM_STEP_MS`, `GO_PRODUCE_WORKERS`, `GO_PRODUCE_QUEUE`, `GO_MAX_BATCH`, `GO_BATCH_FLUSH_MS`, `GO_BAR1S_WORKERS`, `GO_BAR1S_QUEUE`, `GO_BAR1S_FLUSH_MS`, `GO_BAR1M_WORKERS`, `GO_BAR1M_QUEUE`, `GO_BAR1M_FLUSH_MS`, `GO_BARAGG_WORKERS`, `GO_BARAGG_QUEUE`, `GO_BARAGG_FLUSH_MS`, `PAIR_TF`, `PAIR_LOOKBACK`, `PAIR_COUNT`, `PAIR_MIN_READY`.
+- `make go-build` runs through compose profile `tools` service `go-builder` and produces Linux artifacts for Docker-run Go benchmarks.
 - C++ matcher builds with `make matcher-build` (clang/cmake required) before `make matcher-run`.
 - Kafka payloads stay validated via `schemas/*.schema.json`; update schemas alongside producers.
 - Keep `configs/*.yaml` versioned; runtime overrides land in `*.runtime.yaml`.
@@ -88,5 +98,72 @@ flowchart TD
 
 ## Further Reading
 - `docs/ingestion.md` • `docs/compute.md` • `docs/strategy.md` • `docs/risk.md` • `docs/execution.md` • `docs/monitoring.md` • `docs/scoring.md`
-- `docs/study_plan_21d.md` • `docs/runbook_dry_mode.md` • `docs/architecture_tech_choices.md` • `docs/repo_file_catalog.md` • `docs/critical_file_deep_notes.md`
+- `docs/study_cheatsheet.md` • `docs/study_playbook.md` • `docs/study_plan_21d.md` • `docs/runbook_dry_mode.md` • `docs/architecture_tech_choices.md` • `docs/repo_file_catalog.md` • `docs/critical_file_deep_notes.md`
 - `docs/metrics_endpoints.md`
+
+## Current Python vs Go Architecture Differences (as of Feb 14, 2026)
+- Scope: benchmark topology is now aligned for apples-to-apples comparison (`1s -> 1m -> multi` for both runtimes). Python remains the production baseline across all modules.
+- Pipeline shape in benchmark mode:
+  - Python: `ws-sim -> bar_builder_1s.py -> bar_aggregator_1m.py -> bar_aggregator_1m_to_multi.py`
+  - Go: `ws_bridge -> bar_builder_1s (Go) -> bar_aggregator_1m (Go) -> bar_aggregator_multi (Go)`
+- Python execution flow (benchmark path):
+```mermaid
+flowchart LR
+    T[Ticks topic] --> B[bar_builder_1s.py]
+    B --> K1[bars.1s topic]
+    B --> DB1[(Postgres bars_1s)]
+    K1 --> A1[bar_aggregator_1m.py]
+    A1 --> K2[bars.1m topic]
+    A1 --> DB2[(Postgres bars_1m)]
+    K2 --> AM[bar_aggregator_1m_to_multi.py]
+    AM --> K3[bars.3m/5m/15m topics]
+    AM --> DB3[(Postgres bars_3m/5m/15m)]
+```
+- Go execution flow (benchmark path):
+```mermaid
+flowchart LR
+    T["Ticks topic"] --> BG["bar_builder_1s Go"]
+    BG --> K1["bars.1s topic"]
+    BG --> DB1["Postgres bars_1s"]
+    K1 --> A1["bar_aggregator_1m Go"]
+    A1 --> K2["bars.1m topic"]
+    A1 --> DB2["Postgres bars_1m"]
+    K2 --> AG["bar_aggregator_multi Go"]
+    AG --> K3["bars.3m/5m/15m topics"]
+    AG --> DB3["Postgres bars_3m/5m/15m"]
+```
+- Offset/commit checkpoints (current behavior):
+```mermaid
+flowchart LR
+    subgraph PY1[Python builder / 1m aggregator]
+        P1[Consume batch] --> P2[Update in-memory bars]
+        P2 --> P3[Commit offsets]
+        P2 --> P4[Periodic flush DB + Kafka publish]
+    end
+
+    subgraph PY2[Python multi-aggregator]
+        M1[Consume batch] --> M2[Flush ready bars DB + Kafka publish]
+        M2 --> M3[Commit offsets]
+    end
+
+    subgraph GO[Go builder / 1m / multi]
+        G1[Consume message] --> G2[Enqueue to worker shard]
+        G2 --> G3[Commit offset]
+        G2 --> G4[Worker flush DB + Kafka publish]
+    end
+```
+- Concurrency model:
+  - Python compute path is asyncio-driven with batch polling and periodic flush.
+  - Go path is worker-sharded (goroutines + per-symbol hashing) with per-worker queues and batched DB/Kafka writes.
+- Offset/ack semantics today:
+  - Python `bar_builder_1s.py` and `bar_aggregator_1m.py` commit per poll cycle after in-memory processing.
+  - Python `bar_aggregator_1m_to_multi.py` commits offsets after successful flush.
+  - Go builder/aggregator currently commit after enqueue to worker (higher throughput, weaker crash durability than flush-ack).
+- Write path:
+  - Python mostly uses `executemany` + per-message `send_and_wait`.
+  - Go uses `pgx.Batch` + Kafka `ProduceBatch`.
+- Tuning controls:
+  - Ingestion: `GO_PRODUCE_*`
+  - 1s builder: `GO_BAR1S_*`
+  - 1m aggregator: `GO_BAR1M_*`
+  - Multi-agg: `GO_BARAGG_*`
