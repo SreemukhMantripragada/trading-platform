@@ -1,6 +1,7 @@
 apiVersion: 1
 datasources:
   - name: Trading Postgres
+    uid: trading-postgres
     type: postgres
     access: proxy
     url: postgres:5432

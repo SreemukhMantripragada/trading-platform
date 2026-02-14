@@ -6,8 +6,10 @@ This repo now uses a single source of truth for metrics endpoint ownership.
 
 - Registry file: `configs/metrics_endpoints.json`
 - Reader utility: `tools/metrics_catalog.py`
+- Dashboard generator: `tools/generate_grafana_observability.py`
 - Prometheus generated targets: `infra/prometheus/targets_apps.json`
 - Prometheus scrape config: `infra/prometheus/prometheus.yml` (file_sd from generated targets)
+- Grafana control-plane dashboard: `infra/grafana/dashboards/observability/platform_control_plane.json`
 
 ## Why This Exists
 
@@ -22,12 +24,12 @@ That made endpoint ownership unclear and caused collisions/drift.
 Now the flow is:
 1. Edit `configs/metrics_endpoints.json`.
 2. Run `make metrics-sync`.
-3. Restart Prometheus stack (`make up` or container restart).
+3. Restart stack (`make up` or `docker compose restart prometheus grafana`).
 
 ## Operations Commands
 
 - Show endpoint map: `make metrics-list`
-- Validate + generate Prom targets: `make metrics-sync`
+- Validate + generate Prom targets + Grafana control-plane dashboard: `make metrics-sync`
 - Stack boot now auto-generates targets: `make up`
 
 ## Port Ownership Rules
